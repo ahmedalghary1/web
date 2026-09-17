@@ -69,6 +69,25 @@ def report_detail(request, pk):
     report = get_object_or_404(MaintenanceReport.objects.select_related("factory", "asset", "supervisor").prefetch_related("answers__checklist_item__section"), pk=pk); sections = {}
     for answer in report.answers.all(): sections.setdefault(answer.checklist_item.section.name, []).append(answer)
     return render(request, "dashboard/report_detail.html", {"report": report, "sections": sections.items()})
+
+@login_required
+@admin_required
+def report_edit(request, pk):
+    report = get_object_or_404(MaintenanceReport.objects.select_related("factory", "asset", "supervisor").prefetch_related("answers__checklist_item__section"), pk=pk)
+    if request.method == "POST":
+        with transaction.atomic():
+            for answer in report.answers.all():
+                checked_str = request.POST.get(f"checked_{answer.id}")
+                answer.checked = (checked_str == "on")
+                answer.note = request.POST.get(f"note_{answer.id}", "")
+                answer.save()
+            report.updated_at = timezone.now()
+            report.save()
+        messages.success(request, "تم حفظ تعديلات التقرير بنجاح.")
+        return redirect("dashboard:report_detail", pk=report.pk)
+    sections = {}
+    for answer in report.answers.all(): sections.setdefault(answer.checklist_item.section.name, []).append(answer)
+    return render(request, "dashboard/report_edit.html", {"report": report, "sections": sections.items()})
 @login_required
 @admin_required
 def user_list(request): return render(request, "dashboard/users.html", {"users": User.objects.filter(role=User.Role.MAINTENANCE_SUPERVISOR).select_related("factory")})
