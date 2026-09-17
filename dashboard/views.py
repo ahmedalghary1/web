@@ -1,0 +1,92 @@
+from datetime import timedelta
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Count, Q
+from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from accounts.models import User
+from assets.models import Asset
+from dashboard.forms import AssetForm, SupervisorForm
+from factories.models import Factory
+from maintenance.models import MaintenanceReport, MaintenanceReportItem
+from maintenance.services.cycle import MaintenanceCycleService
+
+admin_required = user_passes_test(lambda u: u.is_authenticated and u.role == User.Role.ADMIN)
+@login_required
+@admin_required
+def home(request):
+    today = timezone.localdate(); cards = []; missed_count = 0
+    for factory in Factory.objects.filter(is_active=True):
+        asset, _ = MaintenanceCycleService.current_asset(factory, today); report = MaintenanceReport.objects.filter(factory=factory, report_date=today).select_related("asset", "supervisor").first(); cards.append({"factory": factory, "asset": report.asset if report else asset, "report": report})
+        dates = set(MaintenanceReport.objects.filter(factory=factory, report_date__lt=today).values_list("report_date", flat=True))
+        if dates: missed_count += max(0, (today - min(dates)).days - len(dates))
+    reports = MaintenanceReport.objects.select_related("factory", "asset", "supervisor").prefetch_related("answers").all()[:8]
+    notes = MaintenanceReportItem.objects.exclude(note="").select_related("report__factory", "report__asset", "checklist_item").order_by("-report__created_at")[:6]
+    return render(request, "dashboard/home.html", {"cards": cards, "reports": reports, "notes": notes, "missed_count": missed_count, "completed_count": MaintenanceReport.objects.filter(report_date__gte=today-timedelta(days=30)).count()})
+@login_required
+@admin_required
+def asset_list(request):
+    qs = Asset.objects.select_related("factory").filter(is_archived=False)
+    if request.GET.get("factory"): qs = qs.filter(factory_id=request.GET["factory"])
+    if request.GET.get("asset_type"): qs = qs.filter(asset_type=request.GET["asset_type"])
+    if request.GET.get("q"): qs = qs.filter(asset_code__icontains=request.GET["q"])
+    return render(request, "dashboard/assets.html", {"assets": qs, "factories": Factory.objects.all(), "types": Asset.Type.choices})
+@login_required
+@admin_required
+def asset_form(request, pk=None):
+    obj = get_object_or_404(Asset, pk=pk, is_archived=False) if pk else None; form = AssetForm(request.POST or None, instance=obj)
+    if request.method == "POST" and form.is_valid(): form.save(); messages.success(request, "تم حفظ بيانات الماكينة بنجاح."); return redirect("dashboard:assets")
+    return render(request, "dashboard/form.html", {"form": form, "title": "تعديل ماكينة" if obj else "إضافة ماكينة"})
+@login_required
+@admin_required
+def asset_archive(request, pk):
+    if request.method == "POST":
+        asset = get_object_or_404(Asset, pk=pk); asset.is_archived = True; asset.is_active = False; asset.save(); messages.success(request, "تمت أرشفة الماكينة مع الحفاظ على سجلها التاريخي.")
+    return redirect("dashboard:assets")
+@login_required
+@admin_required
+def asset_reorder(request):
+    if request.method != "POST": return JsonResponse({"detail": "طريقة الطلب غير مسموحة."}, status=405)
+    try:
+        ids = [int(v) for v in request.POST.getlist("ids[]")]; factory = Factory.objects.get(pk=request.POST["factory"]); MaintenanceCycleService.reorder(factory, ids); return JsonResponse({"message": "تم تحديث الترتيب."})
+    except Exception as exc: return JsonResponse({"detail": str(exc)}, status=400)
+@login_required
+@admin_required
+def report_list(request):
+    qs = MaintenanceReport.objects.select_related("factory", "asset", "supervisor").annotate(checked_count=Count("answers", filter=Q(answers__checked=True)), unchecked_count=Count("answers", filter=Q(answers__checked=False)))
+    for field, param in {"factory_id":"factory","asset__asset_type":"asset_type","supervisor_id":"supervisor","report_date":"date"}.items():
+        if request.GET.get(param): qs = qs.filter(**{field: request.GET[param]})
+    if request.GET.get("asset_code"): qs = qs.filter(asset__asset_code__icontains=request.GET["asset_code"])
+    if request.GET.get("date_from"): qs = qs.filter(report_date__gte=request.GET["date_from"])
+    if request.GET.get("date_to"): qs = qs.filter(report_date__lte=request.GET["date_to"])
+    reports = Paginator(qs, 25).get_page(request.GET.get("page"))
+    return render(request, "dashboard/reports.html", {"reports": reports, "factories": Factory.objects.all(), "supervisors": User.objects.filter(role=User.Role.MAINTENANCE_SUPERVISOR), "types": Asset.Type.choices})
+@login_required
+@admin_required
+def report_detail(request, pk):
+    report = get_object_or_404(MaintenanceReport.objects.select_related("factory", "asset", "supervisor").prefetch_related("answers__checklist_item__section"), pk=pk); sections = {}
+    for answer in report.answers.all(): sections.setdefault(answer.checklist_item.section.name, []).append(answer)
+    return render(request, "dashboard/report_detail.html", {"report": report, "sections": sections.items()})
+@login_required
+@admin_required
+def user_list(request): return render(request, "dashboard/users.html", {"users": User.objects.filter(role=User.Role.MAINTENANCE_SUPERVISOR).select_related("factory")})
+@login_required
+@admin_required
+def user_form(request, pk=None):
+    obj = get_object_or_404(User, pk=pk, role=User.Role.MAINTENANCE_SUPERVISOR) if pk else None; form = SupervisorForm(request.POST or None, instance=obj)
+    if request.method == "POST" and form.is_valid(): form.save(); messages.success(request, "تم حفظ بيانات مشرف الصيانة."); return redirect("dashboard:users")
+    return render(request, "dashboard/form.html", {"form": form, "title": "تعديل مشرف" if obj else "إضافة مشرف صيانة"})
+@login_required
+@admin_required
+def factories(request): return render(request, "dashboard/factories.html", {"factories": Factory.objects.prefetch_related("assets", "users")})
+@login_required
+@admin_required
+def daily(request):
+    today = timezone.localdate(); rows=[]
+    for f in Factory.objects.filter(is_active=True):
+        asset, _ = MaintenanceCycleService.current_asset(f, today); report=MaintenanceReport.objects.filter(factory=f, report_date=today).select_related("asset", "supervisor").first(); rows.append({"factory":f,"asset":report.asset if report else asset,"report":report})
+    return render(request,"dashboard/daily.html",{"rows":rows})
+@login_required
+def account(request): return render(request, "dashboard/account.html")
