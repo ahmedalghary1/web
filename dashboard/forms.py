@@ -20,3 +20,15 @@ class SupervisorForm(forms.ModelForm):
         if self.cleaned_data.get("password"): user.set_password(self.cleaned_data["password"])
         if commit: user.save()
         return user
+
+from maintenance.models import ChecklistTemplate
+
+class ChecklistTemplateForm(forms.ModelForm):
+    class Meta:
+        model = ChecklistTemplate
+        fields = ["code", "name", "is_active"]
+        labels = {
+            "code": "كود القائمة (إنجليزي)",
+            "name": "اسم القائمة (عربي)",
+            "is_active": "مفعل"
+        }

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}قوائم الفحص - إدارة الصيانة{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <h2 class="page-title">قوائم الفحص (Checklists)</h2>
+    <a href="{% url 'dashboard:checklist-add' %}" class="btn">إضافة قائمة جديدة</a>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>الكود</th>
+                    <th>الاسم</th>
+                    <th>الإصدار</th>
+                    <th>مفعل</th>
+                    <th>الأقسام والبنود</th>
+                    <th>إجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tpl in checklists %}
+                <tr>
+                    <td><code>{{ tpl.code }}</code></td>
+                    <td><b>{{ tpl.name }}</b></td>
+                    <td>{{ tpl.version }}</td>
+                    <td>
+                        {% if tpl.is_active %}<span class="badge success">نعم</span>{% else %}<span class="badge warning">لا</span>{% endif %}
+                    </td>
+                    <td>
+                        <small>
+                            {% for sec in tpl.sections.all %}
+                                <b>{{ sec.name }}</b> ({{ sec.items.count }} بنود)<br>
+                            {% endfor %}
+                        </small>
+                    </td>
+                    <td>
+                        <a href="{% url 'dashboard:checklist-edit' tpl.id %}" class="btn small">تعديل القائمة</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">لا توجد قوائم فحص مسجلة.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

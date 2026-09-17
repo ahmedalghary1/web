@@ -90,3 +90,22 @@ def daily(request):
     return render(request,"dashboard/daily.html",{"rows":rows})
 @login_required
 def account(request): return render(request, "dashboard/account.html")
+
+from maintenance.models import ChecklistTemplate
+from dashboard.forms import ChecklistTemplateForm
+
+@login_required
+@admin_required
+def checklist_list(request):
+    return render(request, "dashboard/checklists.html", {"checklists": ChecklistTemplate.objects.prefetch_related("sections__items").all()})
+
+@login_required
+@admin_required
+def checklist_form(request, pk=None):
+    obj = get_object_or_404(ChecklistTemplate, pk=pk) if pk else None
+    form = ChecklistTemplateForm(request.POST or None, instance=obj)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "تم حفظ قائمة الفحص بنجاح.")
+        return redirect("dashboard:checklists")
+    return render(request, "dashboard/form.html", {"form": form, "title": "تعديل قائمة فحص" if obj else "إضافة قائمة فحص"})
