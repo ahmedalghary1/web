@@ -38,7 +38,8 @@
                         </small>
                     </td>
                     <td>
-                        <a href="{% url 'dashboard:checklist-edit' tpl.id %}" class="btn small">تعديل القائمة</a>
+                        <a href="{% url 'dashboard:checklist-builder' tpl.id %}" class="btn small success">تعديل الأقسام والبنود</a>
+                        <a href="{% url 'dashboard:checklist-edit' tpl.id %}" class="btn small">إعدادات القائمة</a>
                     </td>
                 </tr>
                 {% empty %}

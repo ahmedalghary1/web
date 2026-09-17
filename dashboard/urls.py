@@ -19,4 +19,5 @@ urlpatterns = [
     path("checklists/", views.checklist_list, name="checklists"),
     path("checklists/add/", views.checklist_form, name="checklist-add"),
     path("checklists/<int:pk>/edit/", views.checklist_form, name="checklist-edit"),
+    path("checklists/<int:pk>/builder/", views.checklist_builder, name="checklist-builder"),
 ]

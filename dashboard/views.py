@@ -109,3 +109,62 @@ def checklist_form(request, pk=None):
         messages.success(request, "تم حفظ قائمة الفحص بنجاح.")
         return redirect("dashboard:checklists")
     return render(request, "dashboard/form.html", {"form": form, "title": "تعديل قائمة فحص" if obj else "إضافة قائمة فحص"})
+
+import json
+from django.db import transaction
+from maintenance.models import ChecklistSection, ChecklistItem
+
+@login_required
+@admin_required
+def checklist_builder(request, pk):
+    tpl = get_object_or_404(ChecklistTemplate, pk=pk)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            with transaction.atomic():
+                existing_sections = {s.id: s for s in tpl.sections.all()}
+                incoming_section_ids = [s.get('id') for s in data if s.get('id')]
+                
+                for sid in existing_sections:
+                    if sid not in incoming_section_ids:
+                        existing_sections[sid].delete()
+                        
+                for s_idx, sec_data in enumerate(data, 1):
+                    sec_id = sec_data.get("id")
+                    if sec_id and sec_id in existing_sections:
+                        sec = existing_sections[sec_id]
+                        sec.name = sec_data.get("name", "")
+                        sec.sequence_order = s_idx
+                        sec.save()
+                    else:
+                        sec = ChecklistSection.objects.create(template=tpl, name=sec_data.get("name", ""), sequence_order=s_idx)
+                        
+                    existing_items = {i.id: i for i in sec.items.all()}
+                    incoming_items = sec_data.get("items", [])
+                    incoming_item_ids = [i.get('id') for i in incoming_items if i.get('id')]
+                    
+                    for iid in existing_items:
+                        if iid not in incoming_item_ids:
+                            existing_items[iid].delete()
+                            
+                    for i_idx, item_data in enumerate(incoming_items, 1):
+                        item_id = item_data.get("id")
+                        if item_id and item_id in existing_items:
+                            item = existing_items[item_id]
+                            item.text = item_data.get("text", "")
+                            item.sequence_order = i_idx
+                            item.save()
+                        else:
+                            ChecklistItem.objects.create(section=sec, text=item_data.get("text", ""), sequence_order=i_idx)
+            return JsonResponse({"message": "تم الحفظ بنجاح"})
+        except Exception as e:
+            return JsonResponse({"detail": str(e)}, status=400)
+            
+    data = []
+    for sec in tpl.sections.prefetch_related("items").all():
+        data.append({
+            "id": sec.id,
+            "name": sec.name,
+            "items": [{"id": it.id, "text": it.text} for it in sec.items.all()]
+        })
+    return render(request, "dashboard/checklist_builder.html", {"template": tpl, "sections_json": json.dumps(data, ensure_ascii=False)})
