@@ -63,7 +63,12 @@ class BatchSyncView(APIView):
             try:
                 result = MaintenanceCycleService.upsert_report(request.user, item); results.append({"client_report_id": str(item["client_report_id"]), "status": result.status, "reason": result.reason, "report_id": result.report.id if result.report else None})
             except Exception as exc:
-                logger.exception("batch_sync_error supervisor_id=%s", request.user.id); results.append({"client_report_id": str(item["client_report_id"]), "status": "rejected", "reason": getattr(exc, "detail", "تعذر مزامنة التقرير.")})
+                logger.exception("batch_sync_error supervisor_id=%s", request.user.id)
+                reason = getattr(exc, "detail", "تعذر مزامنة التقرير.")
+                if isinstance(reason, dict): reason = " ".join([str(v[0]) if isinstance(v, list) else str(v) for v in reason.values()])
+                elif isinstance(reason, list): reason = str(reason[0])
+                else: reason = str(reason)
+                results.append({"client_report_id": str(item["client_report_id"]), "status": "rejected", "reason": reason})
         return Response({"results": results, "current_maintenance": current_payload(request.user), "server_date": timezone.localdate()})
 
 class ReportCreateView(ReportUpsertView):

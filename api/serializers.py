@@ -35,12 +35,8 @@ class AnswerInputSerializer(serializers.Serializer):
     checklist_item_id = serializers.IntegerField(min_value=1); checked = serializers.BooleanField(); note = serializers.CharField(required=False, allow_blank=True, default="")
 class ReportInputSerializer(serializers.Serializer):
     client_report_id = serializers.UUIDField(); asset_id = serializers.IntegerField(min_value=1); report_date = serializers.DateField(); started_at_device = serializers.DateTimeField(); completed_at_device = serializers.DateTimeField(); last_modified_at_device = serializers.DateTimeField(); answers = AnswerInputSerializer(many=True, allow_empty=False)
-    def validate(self, data):
-        if data["completed_at_device"] < data["started_at_device"]: raise serializers.ValidationError("وقت الإكمال يجب ألا يسبق وقت البدء.")
-        if data["last_modified_at_device"] < data["started_at_device"]: raise serializers.ValidationError("وقت آخر تعديل غير صحيح.")
-        return data
+
 class BatchSyncSerializer(serializers.Serializer):
     reports = ReportInputSerializer(many=True, allow_empty=False)
     def validate_reports(self, value):
-        if value != sorted(value, key=lambda x: (x["report_date"], x["completed_at_device"])): raise serializers.ValidationError("يجب إرسال التقارير مرتبة زمنيًا.")
-        return value
+        return sorted(value, key=lambda x: (x["report_date"], x["completed_at_device"]))

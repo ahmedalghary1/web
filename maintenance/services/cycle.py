@@ -85,6 +85,8 @@ class MaintenanceCycleService:
             logger.info("report_modified report_id=%s supervisor_id=%s", existing.id, supervisor.id)
             return SyncResult("synced", existing)
         if data["report_date"] > timezone.localdate(): return SyncResult("rejected", reason="لا يمكن إرسال تقرير بتاريخ مستقبلي.")
+        if data["completed_at_device"] < data["started_at_device"]: return SyncResult("rejected", reason="وقت الإكمال يجب ألا يسبق وقت البدء.")
+        if data["last_modified_at_device"] < data["started_at_device"]: return SyncResult("rejected", reason="وقت آخر تعديل غير صحيح.")
         asset = Asset.objects.filter(pk=data["asset_id"], factory=supervisor.factory).first()
         if not asset: return SyncResult("rejected", reason="الماكينة غير تابعة للمصنع المخصص للمشرف.")
         due, state = cls.current_asset(supervisor.factory, data["report_date"], lock=True)
