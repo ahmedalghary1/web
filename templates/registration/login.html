@@ -1,1 +1,14 @@
-{% load static %}<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تسجيل الدخول</title><link rel="stylesheet" href="{% static 'css/app.css' %}"></head><body class="login-page"><section class="login-card"><div class="login-brand"><span class="brand-mark">⚙<b>✓</b></span><h1>إدارة الصيانة</h1><p>سجّل الدخول إلى لوحة إدارة الفحص الدوري</p></div><form method="post">{% csrf_token %}{% if form.non_field_errors %}<div class="alert error">بيانات الدخول غير صحيحة.</div>{% endif %}<label>{{ form.username.label }}</label>{{ form.username }}<label>{{ form.password.label }}</label>{{ form.password }}<button class="btn primary full">تسجيل الدخول</button></form></section></body></html>
+{% load static %}<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#12384f"><title>تسجيل الدخول | إدارة الصيانة</title><link rel="stylesheet" href="{% static 'css/app.css' %}"></head>
+<body class="login-page">
+  <div class="login-panel"><section class="login-card">
+    <div class="login-brand"><span class="brand-mark" aria-hidden="true">⚙<b>✓</b></span><h1>مرحبًا بعودتك</h1><p>سجّل الدخول لمتابعة عمليات الصيانة اليومية.</p></div>
+    <form method="post">{% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert error" role="alert"><span>!</span><div>رقم الهاتف أو كلمة المرور غير صحيحة.</div></div>{% endif %}
+      <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>{{ form.username }}
+      <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>{{ form.password }}
+      <button class="btn primary full" type="submit">دخول إلى لوحة التحكم</button>
+    </form>
+  </section></div>
+  <aside class="login-aside"><div><span class="badge success">نظام موحّد</span><h2>كل عمليات الصيانة<br>في مكان واحد.</h2><p>راقب حالة المصانع، راجع التقارير، ونظّم دورة الفحص اليومية بوضوح ودقة.</p><div class="login-feature"><span>✓</span>متابعة لحظية لحالة كل مصنع</div><div class="login-feature"><span>▤</span>تقارير تفصيلية قابلة للمراجعة</div></div></aside>
+</body></html>

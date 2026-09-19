@@ -8,7 +8,7 @@
             <p>{{ report.factory.name }} · {{ report.report_date }}</p>
         </div>
     </div>
-    <a href="{% url 'dashboard:report_detail' report.pk %}" class="btn" style="background:var(--secondary)">إلغاء</a>
+    <a href="{% url 'dashboard:report_detail' report.pk %}" class="btn ghost">إلغاء</a>
 </div>
 
 <div class="detail-grid">
@@ -22,23 +22,19 @@
     <section class="panel checklist">
         <h2>{{ section }}</h2>
         {% for a in answers %}
-        <div class="check-row" style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem; padding:1rem; background:rgba(0,0,0,0.02); border-radius:8px;">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
-                <label style="font-weight:bold; cursor:pointer;">
-                    <input type="checkbox" name="checked_{{ a.id }}" {% if a.checked %}checked{% endif %} style="transform:scale(1.5); margin:0.5rem;">
-                </label>
-            </div>
-            <div style="flex-grow:1;">
-                <strong style="display:block; margin-bottom:0.5rem; font-size:1.1rem;">{{ a.checklist_item.text }}</strong>
-                <textarea name="note_{{ a.id }}" placeholder="ملاحظة (اختياري)..." rows="2" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:4px;">{{ a.note }}</textarea>
+        <div class="report-answer-edit">
+            <input type="checkbox" name="checked_{{ a.id }}" aria-label="حالة {{ a.checklist_item.text }}" {% if a.checked %}checked{% endif %}>
+            <div>
+                <strong>{{ a.checklist_item.text }}</strong>
+                <textarea name="note_{{ a.id }}" placeholder="أضف ملاحظة اختيارية..." rows="2">{{ a.note }}</textarea>
             </div>
         </div>
         {% endfor %}
     </section>
     {% endfor %}
 
-    <div style="margin-top:2rem;">
-        <button type="submit" class="btn success" style="font-size:1.2rem; padding:1rem 2rem;">حفظ التعديلات</button>
+    <div class="form-actions">
+        <button type="submit" class="btn success">حفظ التعديلات</button>
     </div>
 </form>
 {% endblock %}

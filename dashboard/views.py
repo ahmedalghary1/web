@@ -62,7 +62,8 @@ def report_list(request):
     if request.GET.get("date_from"): qs = qs.filter(report_date__gte=request.GET["date_from"])
     if request.GET.get("date_to"): qs = qs.filter(report_date__lte=request.GET["date_to"])
     reports = Paginator(qs, 25).get_page(request.GET.get("page"))
-    return render(request, "dashboard/reports.html", {"reports": reports, "factories": Factory.objects.all(), "supervisors": User.objects.filter(role=User.Role.MAINTENANCE_SUPERVISOR), "types": Asset.Type.choices})
+    filters = request.GET.copy(); filters.pop("page", None)
+    return render(request, "dashboard/reports.html", {"reports": reports, "factories": Factory.objects.all(), "supervisors": User.objects.filter(role=User.Role.MAINTENANCE_SUPERVISOR), "types": Asset.Type.choices, "filter_query": filters.urlencode()})
 @login_required
 @admin_required
 def report_detail(request, pk):
@@ -116,7 +117,8 @@ from dashboard.forms import ChecklistTemplateForm
 @login_required
 @admin_required
 def checklist_list(request):
-    return render(request, "dashboard/checklists.html", {"checklists": ChecklistTemplate.objects.prefetch_related("sections__items").all()})
+    checklists = ChecklistTemplate.objects.prefetch_related("sections__items").annotate(item_count=Count("sections__items", distinct=True))
+    return render(request, "dashboard/checklists.html", {"checklists": checklists})
 
 @login_required
 @admin_required

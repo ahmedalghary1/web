@@ -1,54 +1,9 @@
 {% extends 'base.html' %}
-
-{% block title %}قوائم الفحص - إدارة الصيانة{% endblock %}
-
+{% block title %}قوائم الفحص | إدارة الصيانة{% endblock %}
 {% block content %}
-<div class="toolbar">
-    <h2 class="page-title">قوائم الفحص (Checklists)</h2>
-    <a href="{% url 'dashboard:checklist-add' %}" class="btn">إضافة قائمة جديدة</a>
-</div>
-
-<div class="card">
-    <div class="table-responsive">
-        <table>
-            <thead>
-                <tr>
-                    <th>الكود</th>
-                    <th>الاسم</th>
-                    <th>الإصدار</th>
-                    <th>مفعل</th>
-                    <th>الأقسام والبنود</th>
-                    <th>إجراءات</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for tpl in checklists %}
-                <tr>
-                    <td><code>{{ tpl.code }}</code></td>
-                    <td><b>{{ tpl.name }}</b></td>
-                    <td>{{ tpl.version }}</td>
-                    <td>
-                        {% if tpl.is_active %}<span class="badge success">نعم</span>{% else %}<span class="badge warning">لا</span>{% endif %}
-                    </td>
-                    <td>
-                        <small>
-                            {% for sec in tpl.sections.all %}
-                                <b>{{ sec.name }}</b> ({{ sec.items.count }} بنود)<br>
-                            {% endfor %}
-                        </small>
-                    </td>
-                    <td>
-                        <a href="{% url 'dashboard:checklist-builder' tpl.id %}" class="btn small success">تعديل الأقسام والبنود</a>
-                        <a href="{% url 'dashboard:checklist-edit' tpl.id %}" class="btn small">إعدادات القائمة</a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="text-center">لا توجد قوائم فحص مسجلة.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+<div class="page-title"><div><h1>قوائم الفحص</h1><p>أنشئ البنود التي تظهر لمشرف الصيانة لكل نوع ماكينة.</p></div><a href="{% url 'dashboard:checklist-add' %}" class="btn primary">＋ إضافة قائمة</a></div>
+<section class="panel">
+  <div class="panel-title"><h2>القوائم المسجلة</h2><span class="hint">{{ checklists|length }} قائمة</span></div>
+  {% if checklists %}<div class="table-wrap"><table><thead><tr><th>الكود</th><th>اسم القائمة</th><th>الإصدار</th><th>الحالة</th><th>المحتوى</th><th>الإجراءات</th></tr></thead><tbody>{% for tpl in checklists %}<tr><td><code>{{ tpl.code }}</code></td><td><strong>{{ tpl.name }}</strong></td><td>v{{ tpl.version }}</td><td>{% if tpl.is_active %}<span class="badge success">مفعّلة</span>{% else %}<span class="badge warning">متوقفة</span>{% endif %}</td><td><span class="hint">{{ tpl.sections.count }} أقسام · {{ tpl.item_count }} بنود</span></td><td><div class="actions"><a class="btn secondary small" href="{% url 'dashboard:checklist-builder' tpl.id %}">تحرير البنود</a><a class="btn ghost small" href="{% url 'dashboard:checklist-edit' tpl.id %}">الإعدادات</a></div></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty"><span>☷</span><h3>لا توجد قوائم فحص</h3><p>أضف أول قائمة لبدء تجهيز الفحوصات.</p></div>{% endif %}
+</section>
 {% endblock %}

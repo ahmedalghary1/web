@@ -1,9 +1,54 @@
 {% load static %}<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}إدارة الصيانة{% endblock %}</title><link rel="stylesheet" href="{% static 'css/app.css' %}">{% block head %}{% endblock %}</head>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#12384f">
+  <title>{% block title %}إدارة الصيانة{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block head %}{% endblock %}
+</head>
 <body>
-<aside class="sidebar"><a class="brand" href="{% url 'dashboard:home' %}"><span class="brand-mark">⚙<b>✓</b></span><span>إدارة الصيانة<small>الفحص الدوري للمصانع</small></span></a><nav>
-<a href="{% url 'dashboard:home' %}">⌂ الرئيسية</a><a href="{% url 'dashboard:factories' %}">▦ المصانع</a><a href="{% url 'dashboard:assets' %}">⚙ الماكينات</a><a href="{% url 'dashboard:checklists' %}">📋 قوائم الفحص</a><a href="{% url 'dashboard:daily' %}">✓ الصيانة اليومية</a><a href="{% url 'dashboard:reports' %}">▤ التقارير</a><a href="{% url 'dashboard:users' %}">♟ المستخدمون</a><a href="{% url 'dashboard:account' %}">◉ إعدادات الحساب</a></nav>
-<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="logout">↪ تسجيل الخروج</button></form></aside>
-<main><header class="topbar"><button class="menu" id="menu" aria-label="القائمة">☰</button><div><b>نظام الصيانة الدورية</b><span>{{ request.user.phone }}</span></div></header><section class="content">
-{% if messages %}{% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}{% endif %}{% block content %}{% endblock %}</section></main>
-<script>document.getElementById('menu')?.addEventListener('click',()=>document.body.classList.toggle('nav-open'));</script>{% block scripts %}{% endblock %}</body></html>
+{% with current=request.resolver_match.url_name %}
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="{% url 'dashboard:home' %}">
+    <span class="brand-mark" aria-hidden="true">⚙<b>✓</b></span>
+    <span>إدارة الصيانة<small>نظام الفحص الدوري</small></span>
+  </a>
+  <div class="nav-label">مساحة العمل</div>
+  <nav aria-label="التنقل الرئيسي">
+    <a class="{% if current == 'home' %}active{% endif %}" href="{% url 'dashboard:home' %}"><span>⌂</span>الرئيسية</a>
+    <a class="{% if current == 'daily' %}active{% endif %}" href="{% url 'dashboard:daily' %}"><span>✓</span>الصيانة اليومية</a>
+    <a class="{% if current == 'reports' or current == 'report_detail' or current == 'report_edit' %}active{% endif %}" href="{% url 'dashboard:reports' %}"><span>▤</span>التقارير</a>
+    <a class="{% if current == 'factories' %}active{% endif %}" href="{% url 'dashboard:factories' %}"><span>▦</span>المصانع</a>
+    <a class="{% if current == 'assets' or current == 'asset-add' or current == 'asset-edit' %}active{% endif %}" href="{% url 'dashboard:assets' %}"><span>⚙</span>الماكينات</a>
+    <a class="{% if current == 'checklists' or current == 'checklist-add' or current == 'checklist-edit' or current == 'checklist-builder' %}active{% endif %}" href="{% url 'dashboard:checklists' %}"><span>☷</span>قوائم الفحص</a>
+    <a class="{% if current == 'users' or current == 'user-add' or current == 'user-edit' %}active{% endif %}" href="{% url 'dashboard:users' %}"><span>♟</span>المستخدمون</a>
+  </nav>
+  <div class="sidebar-foot">
+    <a class="account-link {% if current == 'account' %}active{% endif %}" href="{% url 'dashboard:account' %}"><span class="user-avatar">{{ request.user.phone|slice:':2' }}</span><span><b>حسابي</b><small>{{ request.user.phone }}</small></span></a>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="logout"><span>↪</span> تسجيل الخروج</button></form>
+  </div>
+</aside>
+<button class="nav-overlay" id="navOverlay" aria-label="إغلاق القائمة"></button>
+<main>
+  <header class="topbar">
+    <button class="menu" id="menu" aria-label="فتح القائمة" aria-controls="sidebar" aria-expanded="false">☰</button>
+    <div class="topbar-title"><b>نظام الصيانة الدورية</b><span>متابعة دقيقة، قرارات أسرع</span></div>
+    <div class="topbar-user"><span class="status-dot"></span><span><b>{{ request.user.get_role_display }}</b><small>{{ request.user.phone }}</small></span></div>
+  </header>
+  <section class="content">
+    {% if messages %}{% for message in messages %}<div class="alert {{ message.tags }}" role="status"><span>✓</span><div>{{ message }}</div></div>{% endfor %}{% endif %}
+    {% block content %}{% endblock %}
+  </section>
+</main>
+{% endwith %}
+<script>
+  const menu=document.getElementById('menu'),overlay=document.getElementById('navOverlay');
+  function setNav(open){document.body.classList.toggle('nav-open',open);menu?.setAttribute('aria-expanded',String(open));}
+  menu?.addEventListener('click',()=>setNav(!document.body.classList.contains('nav-open')));
+  overlay?.addEventListener('click',()=>setNav(false));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')setNav(false)});
+</script>
+{% block scripts %}{% endblock %}
+</body></html>
