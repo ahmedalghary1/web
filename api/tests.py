@@ -42,5 +42,11 @@ class ApiSecurityTests(TestCase):
         self.auth(); payload=self.payload(); created=self.client.post("/api/v1/mobile/reports/",payload,format="json"); self.assertEqual(created.status_code,201); payload["answers"][0]["checked"]=True; payload["last_modified_at_device"]=(datetime.fromisoformat(payload["last_modified_at_device"])+timedelta(minutes=1)).isoformat(); updated=self.client.put(f"/api/v1/mobile/reports/{created.data['report']['id']}/",payload,format="json"); self.assertEqual(updated.status_code,201); self.assertTrue(updated.data["report"]["answers"][0]["checked"])
     def test_batch_duplicate_does_not_abort_results(self): self.auth(); payload=self.payload(); response=self.client.post("/api/v1/mobile/sync/reports/",{"reports":[payload,payload]},format="json"); self.assertEqual(response.status_code,200); self.assertEqual(len(response.data["results"]),2)
     def test_admin_cannot_use_mobile_endpoint(self): self.auth(self.admin); self.assertEqual(self.client.get("/api/v1/mobile/bootstrap/").status_code,403)
+    def test_supervisor_can_select_active_asset_in_own_factory(self):
+        second=Asset.objects.create(factory=self.f1,asset_type=Asset.Type.REGULAR_MACHINE,asset_code="SECOND",sequence_order=2); self.auth()
+        response=self.client.post("/api/v1/mobile/current-maintenance/select/",{"asset_id":second.id},format="json")
+        self.assertEqual(response.status_code,200); self.assertEqual(response.data["asset"]["id"],second.id); self.assertEqual(response.data["selection_mode"],"manual")
+    def test_supervisor_cannot_select_other_factory_asset(self):
+        self.auth(); response=self.client.post("/api/v1/mobile/current-maintenance/select/",{"asset_id":self.other.id},format="json"); self.assertEqual(response.status_code,400)
     def test_dashboard_is_admin_only(self):
         self.client.force_authenticate(user=None); self.client.login(phone=self.user.phone,password="StrongPass!123"); self.assertEqual(self.client.get("/").status_code,302); self.client.logout(); self.client.login(phone=self.admin.phone,password="StrongPass!123"); self.assertEqual(self.client.get("/").status_code,200)

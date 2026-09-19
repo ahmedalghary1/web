@@ -8,7 +8,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from drf_spectacular.utils import OpenApiTypes, extend_schema
 from api.permissions import IsMaintenanceSupervisor
-from api.serializers import BatchSyncSerializer, ChecklistTemplateSerializer, LoginSerializer, ReportInputSerializer, ReportSerializer, UserSerializer, AssetSerializer
+from api.serializers import BatchSyncSerializer, ChecklistTemplateSerializer, CurrentAssetSelectionSerializer, LoginSerializer, ReportInputSerializer, ReportSerializer, UserSerializer, AssetSerializer
+from assets.models import Asset
 from maintenance.models import ChecklistItem, ChecklistTemplate, MaintenanceReport
 from maintenance.services.cycle import MaintenanceCycleService
 
@@ -24,11 +25,27 @@ def current_payload(user):
     today = timezone.localdate(); asset, state = MaintenanceCycleService.current_asset(user.factory, today)
     report = MaintenanceReport.objects.filter(factory=user.factory, report_date=today).select_related("asset", "supervisor").prefetch_related("answers__checklist_item").first()
     if report: asset = report.asset
-    return {"server_date": today, "timezone": "Africa/Cairo", "factory": {"id": user.factory_id, "name": user.factory.name}, "asset": AssetSerializer(asset).data if asset else None, "checklist_template": ChecklistTemplateSerializer(MaintenanceCycleService.template_for(asset)).data if asset else None, "is_reported": bool(report), "report": ReportSerializer(report).data if report else None, "order_version": state.order_version}
+    active_assets = MaintenanceCycleService.active_assets(user.factory)
+    position = next((index for index, item in enumerate(active_assets, 1) if asset and item.id == asset.id), 0)
+    return {"server_date": today, "timezone": "Africa/Cairo", "factory": {"id": user.factory_id, "name": user.factory.name}, "asset": AssetSerializer(asset).data if asset else None, "checklist_template": ChecklistTemplateSerializer(MaintenanceCycleService.template_for(asset)).data if asset else None, "is_reported": bool(report), "report": ReportSerializer(report).data if report else None, "order_version": state.order_version, "is_maintenance_day": MaintenanceCycleService.is_maintenance_day(today), "selection_mode": "manual" if state.manual_selected_by_id and asset and state.current_asset_id == asset.id else "automatic", "cycle_position": position, "cycle_total": len(active_assets)}
 class CurrentMaintenanceView(APIView):
     permission_classes = [IsMaintenanceSupervisor]
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request): return Response(current_payload(request.user))
+class CurrentAssetSelectionView(APIView):
+    permission_classes = [IsMaintenanceSupervisor]
+    serializer_class = CurrentAssetSelectionSerializer
+    @extend_schema(request=CurrentAssetSelectionSerializer, responses=OpenApiTypes.OBJECT)
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data); serializer.is_valid(raise_exception=True)
+        asset = Asset.objects.filter(pk=serializer.validated_data["asset_id"], factory=request.user.factory).first()
+        if not asset: return Response({"detail": "الماكينة غير تابعة للمصنع المخصص لك."}, status=400)
+        try: MaintenanceCycleService.select_current_asset(request.user.factory, asset, request.user)
+        except Exception as exc:
+            detail = getattr(exc, "detail", str(exc))
+            if isinstance(detail, list): detail = str(detail[0])
+            return Response({"detail": detail}, status=400)
+        return Response(current_payload(request.user))
 class BootstrapView(APIView):
     permission_classes = [IsMaintenanceSupervisor]
     @extend_schema(responses=OpenApiTypes.OBJECT)

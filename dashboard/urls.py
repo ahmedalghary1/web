@@ -10,6 +10,7 @@ urlpatterns = [
     path("assets/<int:pk>/archive/", views.asset_archive, name="asset-archive"),
     path("assets/reorder/", views.asset_reorder, name="asset-reorder"),
     path("daily/", views.daily, name="daily"),
+    path("daily/<int:factory_id>/select-asset/", views.select_daily_asset, name="daily-select-asset"),
     path("reports/", views.report_list, name="reports"),
     path("reports/<int:pk>/", views.report_detail, name="report_detail"),
     path("reports/<int:pk>/edit/", views.report_edit, name="report_edit"),

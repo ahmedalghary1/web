@@ -17,14 +17,18 @@ admin_required = user_passes_test(lambda u: u.is_authenticated and u.role == Use
 @login_required
 @admin_required
 def home(request):
-    today = timezone.localdate(); cards = []; missed_count = 0
+    today = timezone.localdate(); cards = []; missed_count = 0; is_maintenance_day = MaintenanceCycleService.is_maintenance_day(today)
     for factory in Factory.objects.filter(is_active=True):
         asset, _ = MaintenanceCycleService.current_asset(factory, today); report = MaintenanceReport.objects.filter(factory=factory, report_date=today).select_related("asset", "supervisor").first(); cards.append({"factory": factory, "asset": report.asset if report else asset, "report": report})
         dates = set(MaintenanceReport.objects.filter(factory=factory, report_date__lt=today).values_list("report_date", flat=True))
-        if dates: missed_count += max(0, (today - min(dates)).days - len(dates))
+        if dates:
+            cursor = min(dates)
+            while cursor < today:
+                if MaintenanceCycleService.is_maintenance_day(cursor) and cursor not in dates: missed_count += 1
+                cursor += timedelta(days=1)
     reports = MaintenanceReport.objects.select_related("factory", "asset", "supervisor").prefetch_related("answers").all()[:8]
     notes = MaintenanceReportItem.objects.exclude(note="").select_related("report__factory", "report__asset", "checklist_item").order_by("-report__created_at")[:6]
-    return render(request, "dashboard/home.html", {"cards": cards, "reports": reports, "notes": notes, "missed_count": missed_count, "completed_count": MaintenanceReport.objects.filter(report_date__gte=today-timedelta(days=30)).count()})
+    return render(request, "dashboard/home.html", {"cards": cards, "reports": reports, "notes": notes, "missed_count": missed_count, "completed_count": MaintenanceReport.objects.filter(report_date__gte=today-timedelta(days=30)).count(), "is_maintenance_day": is_maintenance_day})
 @login_required
 @admin_required
 def asset_list(request):
@@ -104,10 +108,25 @@ def factories(request): return render(request, "dashboard/factories.html", {"fac
 @login_required
 @admin_required
 def daily(request):
-    today = timezone.localdate(); rows=[]
+    today = timezone.localdate(); rows=[]; is_maintenance_day = MaintenanceCycleService.is_maintenance_day(today)
     for f in Factory.objects.filter(is_active=True):
-        asset, _ = MaintenanceCycleService.current_asset(f, today); report=MaintenanceReport.objects.filter(factory=f, report_date=today).select_related("asset", "supervisor").first(); rows.append({"factory":f,"asset":report.asset if report else asset,"report":report})
-    return render(request,"dashboard/daily.html",{"rows":rows})
+        asset, state = MaintenanceCycleService.current_asset(f, today); report=MaintenanceReport.objects.filter(factory=f, report_date=today).select_related("asset", "supervisor").first(); rows.append({"factory":f,"asset":report.asset if report else asset,"report":report,"assets":MaintenanceCycleService.active_assets(f),"manual":bool(state.manual_selected_by_id)})
+    return render(request,"dashboard/daily.html",{"rows":rows,"is_maintenance_day":is_maintenance_day})
+
+@login_required
+@admin_required
+def select_daily_asset(request, factory_id):
+    if request.method != "POST": return redirect("dashboard:daily")
+    factory = get_object_or_404(Factory, pk=factory_id, is_active=True)
+    asset = get_object_or_404(Asset, pk=request.POST.get("asset_id"), factory=factory)
+    try:
+        MaintenanceCycleService.select_current_asset(factory, asset, request.user)
+        messages.success(request, f"تم تعيين الماكينة {asset.asset_code} لمهمة {factory.name} اليوم.")
+    except Exception as exc:
+        detail = getattr(exc, "detail", str(exc))
+        if isinstance(detail, list): detail = str(detail[0])
+        messages.error(request, detail)
+    return redirect("dashboard:daily")
 @login_required
 def account(request): return render(request, "dashboard/account.html")
 

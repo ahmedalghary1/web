@@ -7,7 +7,7 @@ from django.utils import timezone
 from accounts.models import User
 from assets.models import Asset
 from factories.models import Factory
-from maintenance.models import MaintenanceReport
+from maintenance.models import FactoryMaintenanceState, MaintenanceReport
 
 
 class DashboardReportLinkTests(TestCase):
@@ -48,3 +48,22 @@ class DashboardReportLinkTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("dashboard:report_detail", args=[self.report.pk]))
+
+    def test_completed_daily_report_cannot_be_reassigned(self):
+        other = Asset.objects.create(factory=self.report.factory, asset_type=Asset.Type.REGULAR_MACHINE, asset_code="OTHER-ASSET", sequence_order=2)
+        response = self.client.post(reverse("dashboard:daily-select-asset", args=[self.report.factory_id]), {"asset_id": other.id}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.report.refresh_from_db()
+        self.assertNotEqual(self.report.asset_id, other.id)
+        self.assertContains(response, "تم إكمال تقرير هذا اليوم بالفعل")
+
+    def test_admin_can_reassign_unstarted_daily_task(self):
+        factory = Factory.objects.get(code="F2")
+        first = Asset.objects.create(factory=factory, asset_type=Asset.Type.REGULAR_MACHINE, asset_code="F2-FIRST", sequence_order=1)
+        selected = Asset.objects.create(factory=factory, asset_type=Asset.Type.SPRING_MACHINE, asset_code="F2-SELECTED", sequence_order=1)
+        response = self.client.post(reverse("dashboard:daily-select-asset", args=[factory.id]), {"asset_id": selected.id}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        state = FactoryMaintenanceState.objects.get(factory=factory)
+        self.assertEqual(state.current_asset_id, selected.id)
+        self.assertIsNotNone(state.manual_selected_by_id)
+        self.assertContains(response, "تم تعيين الماكينة")

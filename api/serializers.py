@@ -36,6 +36,9 @@ class AnswerInputSerializer(serializers.Serializer):
 class ReportInputSerializer(serializers.Serializer):
     client_report_id = serializers.UUIDField(); asset_id = serializers.IntegerField(min_value=1); report_date = serializers.DateField(); started_at_device = serializers.DateTimeField(); completed_at_device = serializers.DateTimeField(); last_modified_at_device = serializers.DateTimeField(); answers = AnswerInputSerializer(many=True, allow_empty=False)
 
+class CurrentAssetSelectionSerializer(serializers.Serializer):
+    asset_id = serializers.IntegerField(min_value=1)
+
 class BatchSyncSerializer(serializers.Serializer):
     reports = ReportInputSerializer(many=True, allow_empty=False)
     def validate_reports(self, value):
