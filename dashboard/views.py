@@ -55,7 +55,7 @@ def asset_reorder(request):
 @login_required
 @admin_required
 def report_list(request):
-    qs = MaintenanceReport.objects.select_related("factory", "asset", "supervisor").annotate(checked_count=Count("answers", filter=Q(answers__checked=True)), unchecked_count=Count("answers", filter=Q(answers__checked=False)))
+    qs = MaintenanceReport.objects.select_related("factory", "asset", "supervisor").annotate(checked_count=Count("answers", filter=Q(answers__checked=True)), unchecked_count=Count("answers", filter=Q(answers__checked=False))).order_by("-report_date", "-created_at")
     for field, param in {"factory_id":"factory","asset__asset_type":"asset_type","supervisor_id":"supervisor","report_date":"date"}.items():
         if request.GET.get(param): qs = qs.filter(**{field: request.GET[param]})
     if request.GET.get("asset_code"): qs = qs.filter(asset__asset_code__icontains=request.GET["asset_code"])
