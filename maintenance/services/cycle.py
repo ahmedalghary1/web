@@ -1,10 +1,11 @@
 import logging
 from dataclasses import dataclass
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from assets.models import Asset
-from maintenance.models import ChecklistTemplate, FactoryMaintenanceState, MaintenanceReport, MaintenanceReportItem
+from maintenance.models import ChecklistItem, ChecklistTemplate, FactoryMaintenanceState, MaintenanceReport, MaintenanceReportItem
 
 logger = logging.getLogger("maintenance")
 
@@ -29,7 +30,8 @@ class MaintenanceCycleService:
 
     @classmethod
     def template_for(cls, asset):
-        return ChecklistTemplate.objects.prefetch_related("sections__items").get(code=cls.TEMPLATE_BY_TYPE[asset.asset_type], is_active=True)
+        active_items = Prefetch("sections__items", queryset=ChecklistItem.objects.filter(is_active=True))
+        return ChecklistTemplate.objects.prefetch_related(active_items).get(code=cls.TEMPLATE_BY_TYPE[asset.asset_type], is_active=True)
 
     @classmethod
     def _next_after(cls, factory, previous):

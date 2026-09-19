@@ -1,5 +1,6 @@
 import logging
 from django.db import IntegrityError
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -8,7 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from drf_spectacular.utils import OpenApiTypes, extend_schema
 from api.permissions import IsMaintenanceSupervisor
 from api.serializers import BatchSyncSerializer, ChecklistTemplateSerializer, LoginSerializer, ReportInputSerializer, ReportSerializer, UserSerializer, AssetSerializer
-from maintenance.models import ChecklistTemplate, MaintenanceReport
+from maintenance.models import ChecklistItem, ChecklistTemplate, MaintenanceReport
 from maintenance.services.cycle import MaintenanceCycleService
 
 logger = logging.getLogger("api")
@@ -32,7 +33,15 @@ class BootstrapView(APIView):
     permission_classes = [IsMaintenanceSupervisor]
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
-        payload = current_payload(request.user); payload.update(user=UserSerializer(request.user).data, active_assets=AssetSerializer(MaintenanceCycleService.active_assets(request.user.factory), many=True).data, checklist_templates=ChecklistTemplateSerializer(ChecklistTemplate.objects.filter(is_active=True).prefetch_related("sections__items"), many=True).data)
+        active_items = Prefetch("sections__items", queryset=ChecklistItem.objects.filter(is_active=True))
+        templates_qs = ChecklistTemplate.objects.filter(is_active=True).prefetch_related(active_items)
+
+        payload = current_payload(request.user)
+        payload.update(
+            user=UserSerializer(request.user).data,
+            active_assets=AssetSerializer(MaintenanceCycleService.active_assets(request.user.factory), many=True).data,
+            checklist_templates=ChecklistTemplateSerializer(templates_qs, many=True).data
+        )
         return Response(payload)
 class ReportUpsertView(APIView):
     permission_classes = [IsMaintenanceSupervisor]
