@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}القائمين على الماكينات (العمال) | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>القائمين على الماكينات (العمال)</h1>
+    <p>إدارة سجل المشغلين والعمال لاختيارهم على الماكينات في الورديات{% if factory %} · <strong>المصنع: {{ factory.name }}</strong>{% endif %}</p>
+  </div>
+  <div>
+    <a href="{% url 'production:operator_add' %}" class="btn primary">{% icon "plus" %} إضافة عامل جديد</a>
+  </div>
+</div>
+
+{% if is_admin and factories %}
+<div class="factory-switch-pills" style="margin-bottom:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  <span style="font-weight:700; color:var(--muted); font-size:13px; margin-left:4px;">تصفية المصنع:</span>
+  <a href="?factory=all" class="btn small {% if not factory %}primary{% else %}ghost{% endif %}">{% icon "globe" %} كافة المصانع</a>
+  {% for f in factories %}
+  <a href="?factory={{ f.id }}" class="btn small {% if factory and factory.id == f.id %}primary{% else %}ghost{% endif %}">{% icon "factory" %} {{ f.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          {% if is_admin %}<th>المصنع</th>{% endif %}
+          <th>اسم العامل</th>
+          <th>رقم الهاتف</th>
+          <th>الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for op in operators %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          {% if is_admin %}<td><span class="badge muted">{% icon "factory" %} {{ op.factory.name }}</span></td>{% endif %}
+          <td><strong>{{ op.name }}</strong></td>
+          <td>{{ op.phone|default:"-" }}</td>
+
+          <td>
+            {% if op.is_active %}
+              <span class="badge success">{% icon "check" %} نشط</span>
+            {% else %}
+              <span class="badge muted">معطل</span>
+            {% endif %}
+          </td>
+          <td class="actions">
+            <a href="{% url 'production:operator_edit' op.id %}" class="btn small ghost">{% icon "edit" %} تعديل</a>
+            <form method="post" action="{% url 'production:operator_toggle' op.id %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn small {% if op.is_active %}danger{% else %}success{% endif %}">
+                {% if op.is_active %}تعطيل{% else %}تفعيل{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center" style="padding:24px;">لا يوجد عمال مسجلون حتى الآن.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

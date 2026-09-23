@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}لوحة متابعة الإنتاج والأعطال | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <div class="page-title">
+    <h1>لوحة متابعة الإنتاج والأعطال</h1>
+    <p>
+      متابعة حركة الإنتاج اليومية، تشغيل الماكينات، والأعطال والتوقفات
+      {% if factory %} · <strong>المصنع: {{ factory.name }}</strong>{% elif is_admin %} · <strong>(كافة المصانع)</strong>{% endif %}
+    </p>
+  </div>
+  <div class="date">{% icon "calendar" %} {{ today|date:"l، d F Y" }}</div>
+</div>
+
+{% if is_admin %}
+<div class="factory-switch-pills" style="margin-bottom:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  <span style="font-weight:700; color:var(--muted); font-size:13px; margin-left:4px;">تصفية المصنع:</span>
+  <a href="?factory=all" class="btn small {% if not factory %}primary{% else %}ghost{% endif %}">{% icon "globe" %} كافة المصانع</a>
+  {% for f in factories %}
+  <a href="?factory={{ f.id }}" class="btn small {% if factory and factory.id == f.id %}primary{% else %}ghost{% endif %}">{% icon "factory" %} {{ f.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="stat-row">
+  <article>
+    <span>إجمالي الإنتاج المسجل اليوم</span>
+    <strong>{{ total_weight_today }} <small style="font-size:16px;">كجم</small></strong>
+    <small>وزن الإنتاج النهائي لكافة الورديات اليوم</small>
+  </article>
+  <article>
+    <span>الماكينات العاملة اليوم</span>
+    <strong>{{ active_machines_count }} <small style="font-size:16px;">/ {{ total_machines }}</small></strong>
+    <small>ماكينة سجلت إنتاجاً في ورديات اليوم</small>
+  </article>
+  <article>
+    <span>الأعطال والتوقفات المسجلة اليوم</span>
+    <strong style="color: {% if stoppages_count > 0 %}var(--error){% else %}var(--success){% endif %};">
+      {{ stoppages_count }} <small style="font-size:16px;">توقف ({{ total_stoppage_mins }} دقيقة)</small>
+    </strong>
+    <small>تشمل أعطال الماكينات والتوقفات العامة</small>
+  </article>
+  <article>
+    <span>تغييرات العمال والمنتجات اليوم</span>
+    <strong style="color: {% if today_product_changes > 0 or today_operator_changes > 0 %}#d35400{% else %}var(--muted){% endif %};">
+      {% if today_product_changes > 0 or today_operator_changes > 0 %}
+        {{ today_product_changes }} منتج · {{ today_operator_changes }} عامل
+      {% else %}
+        0
+      {% endif %}
+    </strong>
+    <small>تغييرات تمت بالماكينات عن المسجل بالداشبورد</small>
+  </article>
+</div>
+
+{% if pending_handovers %}
+<div class="panel" style="border: 2px solid #f39c12; background: #fffcf5;">
+  <div class="panel-title">
+    <h2 style="color: #b7791f; display:flex; align-items:center; gap:8px;">
+      {% icon "stoppage" %} ورديات بانتظار تأكيد التسليم والاستلام ({{ pending_handovers.count }})
+    </h2>
+  </div>
+  <p style="color: #7d5a29; margin-top:0; margin-bottom:14px; font-size:13px;">
+    الورديات التالية قام المشرف بإنهاء تسجيلها وهي في انتظار مراجعة وتأكيد استلام المشرف التالي:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>تاريخ الوردية</th>
+          <th>الوردية</th>
+          <th>مشرف الوردية</th>
+          <th>إجمالي الوزن</th>
+          <th>توقيت الإرسال</th>
+          <th>الإجراء</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rep in pending_handovers %}
+        <tr>
+          <td><strong>{{ rep.report_date }}</strong></td>
+          <td><span class="badge warning">{{ rep.get_shift_display }}</span></td>
+          <td>{{ rep.supervisor.display_name }}</td>
+          <td><strong>{{ rep.total_weight }} كجم</strong></td>
+          <td>{{ rep.created_at|date:"h:i A" }}</td>
+          <td>
+            <a href="{% url 'production:report_detail' rep.id %}" class="btn small primary">{% icon "handshake" %} مراجعة واستلام الوردية</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="panel-title">
+    <h2>أحدث تقارير الورديات</h2>
+    <a href="{% url 'production:reports' %}">عرض كافة التقارير {% icon "arrow_left" %}</a>
+  </div>
+  {% if recent_reports %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>تاريخ الوردية</th>
+          <th>الوردية</th>
+          <th>المشرف القائم</th>
+          <th>الماكينات المسجلة</th>
+          <th>إجمالي الإنتاج (كجم)</th>
+          <th>الحالة</th>
+          <th>المستلم</th>
+          <th>التفاصيل</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rep in recent_reports %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td><strong>{{ rep.report_date }}</strong></td>
+          <td><b>{{ rep.get_shift_display }}</b></td>
+          <td>{{ rep.supervisor.display_name }}</td>
+          <td>
+            <strong>{{ rep.machine_entries.count }}</strong> ماكينة
+            {% with p_count=rep.changed_products_count o_count=rep.changed_operators_count %}
+              {% if p_count or o_count %}
+                <div style="margin-top:4px; display:flex; gap:4px; flex-wrap:wrap;">
+                  {% if p_count %}
+                    <span class="badge warning" style="font-size:10px; padding:1px 5px;" title="تم تغيير المنتج عن الافتراضي بالماكينة">
+                      {{ p_count }} تغيير منتج
+                    </span>
+                  {% endif %}
+                  {% if o_count %}
+                    <span class="badge warning" style="font-size:10px; padding:1px 5px;" title="تم تغيير العامل عن الافتراضي بالماكينة">
+                      {{ o_count }} تغيير عامل
+                    </span>
+                  {% endif %}
+                </div>
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td><strong>{{ rep.total_weight }} كجم</strong></td>
+          <td>
+            {% if rep.status == 'CONFIRMED' %}
+              <span class="badge success">{% icon "check" %} تم التأكيد والاستلام</span>
+            {% elif rep.status == 'PENDING_HANDOVER' %}
+              <span class="badge warning">{% icon "clock" %} بانتظار الاستلام</span>
+            {% else %}
+              <span class="badge muted">مسودة</span>
+            {% endif %}
+          </td>
+          <td>{{ rep.handover_to_supervisor.display_name|default:"-" }}</td>
+          <td>
+            <a href="{% url 'production:report_detail' rep.id %}" class="btn small ghost">{% icon "eye" %} عرض التقرير</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span>{% icon "reports" size="40" %}</span>
+    <h3>لا توجد تقارير ورديات مسجلة حتى الآن</h3>
+    <p>يمكن للمشرفين تسجيل تقارير الإنتاج والأعطال مباشرة من تطبيق الموبايل وسوف تظهر هنا فوراً.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

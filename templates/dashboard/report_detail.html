@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}{{ report.asset.maintenance_title }} | تفاصيل تقرير الصيانة{% endblock %}
+{% block content %}
+<div class="toolbar">
+    <div class="page-title">
+        <div>
+            <h1>{{ report.asset.maintenance_title }}</h1>
+            <p>{{ report.factory.name }} · {{ report.report_date }} · {{ report.asset.get_asset_type_display }}</p>
+        </div>
+        <span class="badge success">مكتمل ومقفل</span>
+    </div>
+    <a href="{% url 'dashboard:report_edit' report.pk %}" class="btn">تعديل التقرير</a>
+</div>
+
+<div class="detail-grid">
+    <article>
+        <span>الماكينة</span>
+        <strong>{{ report.asset.maintenance_title }}</strong>
+        <small>{{ report.asset.get_asset_type_display }} — كود {{ report.asset.asset_code }} — ترتيب {{ report.asset.sequence_order }}</small>
+    </article>
+    <article>
+        <span>مشرف الصيانة</span>
+        <strong>{{ report.supervisor.display_name }}</strong>
+        <small>أُرسل {{ report.completed_at|date:'Y-m-d H:i' }}</small>
+    </article>
+</div>
+
+{% for section, answers in sections %}
+<section class="panel checklist">
+    <h2>{{ section }}</h2>
+    {% for a in answers %}
+    <div class="check-row">
+        <span class="check {% if a.checked %}on{% endif %}">{% if a.checked %}✓{% endif %}</span>
+        <div>
+            <strong>{{ a.checklist_item.text }}</strong>
+            <small>{% if a.checked %}محدد{% else %}غير محدد{% endif %}</small>
+            {% if a.note %}<p>{{ a.note }}</p>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</section>
+{% endfor %}
+
+<section class="panel staff-panel" style="margin-top:24px;border-right:4px solid #3b82f6">
+    <div class="panel-title" style="margin-bottom:16px">
+        <h2>فريق الصيانة والاعتماد</h2>
+    </div>
+    <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+        <article>
+            <span style="display:flex;align-items:center;gap:6px">🧹 القائم بالنظافة</span>
+            <strong>{{ report.cleaner_name|default:"—" }}</strong>
+        </article>
+        <article>
+            <span style="display:flex;align-items:center;gap:6px">🔧 القائم بالصيانة الميكانيكية</span>
+            <strong>{{ report.mechanical_technician|default:"—" }}</strong>
+        </article>
+        <article>
+            <span style="display:flex;align-items:center;gap:6px">⚡ القائم بالصيانة الكهربية</span>
+            <strong>{{ report.electrical_technician|default:"—" }}</strong>
+        </article>
+        <article>
+            <span style="display:flex;align-items:center;gap:6px">👔 مدير الصيانة</span>
+            <strong>{{ report.maintenance_manager|default:"—" }}</strong>
+        </article>
+    </div>
+</section>
+
+{% if emergency_items %}
+<section class="panel emergency-panel" style="margin-top:24px;border-right:4px solid #f59e0b">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2>الصيانة الطارئة والأعطال المسجلة</h2>
+        <span class="badge warning">{{ emergency_items|length }} أعطال مسجلة</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>الماكينة / المكبس</th>
+                    <th>العطل</th>
+                    <th>المسؤول</th>
+                    <th>ملاحظات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in emergency_items %}
+                <tr>
+                    <td>
+                        <strong>{{ item.asset.asset_code }}</strong>
+                        <small style="display:block;color:var(--text-muted,#64748b)">{{ item.asset.get_asset_type_display }}</small>
+                    </td>
+                    <td><strong style="color:#e11d48">{{ item.issue_description }}</strong></td>
+                    <td>{{ item.responsible_person }}</td>
+                    <td>{{ item.notes|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

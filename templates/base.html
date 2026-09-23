@@ -1,0 +1,142 @@
+{% load static icons %}<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#12384f">
+  <title>{% block title %}نظام إدارة المصانع{% endblock %} · مصانع الوسام</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% with current=request.resolver_match.url_name app=request.resolver_match.app_name %}
+<aside class="sidebar" id="sidebar">
+  {% if app == 'production' %}
+  <a class="brand" href="{% url 'production:home' %}">
+    <span class="brand-mark production-mark" aria-hidden="true">{% icon "factory" %}</span>
+    <span>إدارة الإنتاج<small>نظام الإنتاج والأعطال</small></span>
+  </a>
+  <div class="nav-label">مساحة عمل الإنتاج</div>
+  <nav aria-label="التنقل الرئيسي">
+    <a class="{% if current == 'home' %}active{% endif %}" href="{% url 'production:home' %}"><span>{% icon "home" %}</span>لوحة الإنتاج</a>
+    <a class="{% if current == 'reports' or current == 'report_detail' %}active{% endif %}" href="{% url 'production:reports' %}"><span>{% icon "reports" %}</span>تقارير الوردية</a>
+    <a class="{% if current == 'machine_defaults' or current == 'machine_default_edit' %}active{% endif %}" href="{% url 'production:machine_defaults' %}"><span>{% icon "machine" %}</span>إعدادات الماكينات (اللقم والدورة)</a>
+    <a class="{% if current == 'products' or current == 'product_add' or current == 'product_edit' %}active{% endif %}" href="{% url 'production:products' %}"><span>{% icon "products" %}</span>المنتجات</a>
+    <a class="{% if current == 'operators' or current == 'operator_add' or current == 'operator_edit' %}active{% endif %}" href="{% url 'production:operators' %}"><span>{% icon "operator" %}</span>القائمين على الماكينات</a>
+    <a class="{% if current == 'stoppages' %}active{% endif %}" href="{% url 'production:stoppages' %}"><span>{% icon "stoppage" %}</span>الأعطال والتوقفات</a>
+  </nav>
+  {% else %}
+  <a class="brand" href="{% url 'dashboard:home' %}">
+    <span class="brand-mark maintenance-mark" aria-hidden="true">{% icon "tools" %}</span>
+    <span>إدارة الصيانة<small>نظام الصيانة الدورية</small></span>
+  </a>
+  <div class="nav-label">مساحة عمل الصيانة</div>
+  <nav aria-label="التنقل الرئيسي">
+    <a class="{% if current == 'home' %}active{% endif %}" href="{% url 'dashboard:home' %}"><span>{% icon "home" %}</span>الرئيسية</a>
+    <a class="{% if current == 'daily' %}active{% endif %}" href="{% url 'dashboard:daily' %}"><span>{% icon "daily_check" %}</span>الصيانة اليومية</a>
+    <a class="{% if current == 'reports' or current == 'report_detail' or current == 'report_edit' %}active{% endif %}" href="{% url 'dashboard:reports' %}"><span>{% icon "reports" %}</span>التقارير اليومية</a>
+    <a class="{% if current == 'monthly_report' %}active{% endif %}" href="{% url 'dashboard:monthly_report' %}"><span>{% icon "analytics" %}</span>التقرير الشهري الشامل</a>
+    {% if request.user.is_admin %}
+    <a class="{% if current == 'factories' %}active{% endif %}" href="{% url 'dashboard:factories' %}"><span>{% icon "factories" %}</span>المصانع</a>
+    <a class="{% if current == 'assets' or current == 'asset-add' or current == 'asset-edit' %}active{% endif %}" href="{% url 'dashboard:assets' %}"><span>{% icon "machine" %}</span>الماكينات</a>
+    <a class="{% if current == 'checklists' or current == 'checklist-add' or current == 'checklist-edit' or current == 'checklist-builder' %}active{% endif %}" href="{% url 'dashboard:checklists' %}"><span>{% icon "checklists" %}</span>قوائم الصيانة الدورية</a>
+    <a class="{% if current == 'users' or current == 'user-add' or current == 'user-edit' %}active{% endif %}" href="{% url 'dashboard:users' %}"><span>{% icon "users" %}</span>المستخدمون</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+  <div class="sidebar-foot">
+    <a class="account-link {% if current == 'account' %}active{% endif %}" href="{% url 'dashboard:account' %}">
+      <span class="user-avatar">{{ request.user.display_name|slice:':2' }}</span>
+      <span><b>{{ request.user.display_name }}</b><small>
+        {% if request.user.is_admin %}مسؤول النظام
+        {% elif request.user.factory %}{{ request.user.factory.name }}
+        {% else %}مشرف{% endif %}
+      </small></span>
+    </a>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="logout"><span>{% icon "logout" %}</span> تسجيل الخروج</button></form>
+  </div>
+</aside>
+<button class="nav-overlay" id="navOverlay" aria-label="إغلاق القائمة"></button>
+<main>
+  <header class="topbar">
+    <button class="menu" id="menu" aria-label="فتح القائمة" aria-controls="sidebar" aria-expanded="false">{% icon "menu" %}</button>
+
+    <!-- App Switcher Tabs -->
+    <div class="app-switcher-container">
+      <div class="app-switcher">
+        {% if request.user.can_access_maintenance %}
+        <a href="{% url 'dashboard:home' %}" class="app-tab tab-maintenance {% if app != 'production' %}active{% endif %}" id="tab-maintenance">
+          <span class="tab-icon">{% icon "tools" %}</span>
+          <span class="tab-label">الصيانة الدورية</span>
+          {% if app != 'production' %}<span class="active-indicator"></span>{% endif %}
+        </a>
+        {% endif %}
+
+        {% if request.user.can_access_production %}
+        <a href="{% url 'production:home' %}" class="app-tab tab-production {% if app == 'production' %}active{% endif %}" id="tab-production">
+          <span class="tab-icon">{% icon "factory" %}</span>
+          <span class="tab-label">الإنتاج والأعطال</span>
+          {% if app == 'production' %}<span class="active-indicator"></span>{% endif %}
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Factory Switcher (Admin) or Factory Badge (Supervisor) -->
+    <div class="topbar-factory-wrapper">
+      {% if request.user.is_admin %}
+      <div class="admin-factory-selector">
+        <span class="factory-pill-icon">{% icon "factories" %}</span>
+        <select id="topbarFactorySelect" onchange="switchAdminFactory(this.value)" aria-label="اختيار المصنع للوحة الحالية">
+          <option value="all" {% if current_factory_id == 'all' or not current_factory_id %}selected{% endif %}>كافة المصانع</option>
+          {% for f in all_active_factories %}
+          <option value="{{ f.id }}" {% if current_factory_id == f.id|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% elif request.user.factory %}
+      <div class="supervisor-factory-pill" title="أنت تعمل حالياً على بيانات هذا المصنع المخصص لك فقط">
+        <span class="pulse-dot"></span>
+        <span class="pill-label">المصنع:</span>
+        <strong>{{ request.user.factory.name }}</strong>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- User Details & Role Badge -->
+    <div class="topbar-user">
+      <div class="user-meta">
+        <span class="user-title"><b>{{ request.user.display_name }}</b></span>
+        <span class="user-role-badge role-{{ request.user.role|lower }}">
+          {% if request.user.is_admin %}{% icon "crown" %} مسؤول النظام
+          {% elif request.user.role == 'MAINTENANCE_SUPERVISOR' %}{% icon "tools" %} مشرف صيانة
+          {% elif request.user.role == 'PRODUCTION_SUPERVISOR' %}{% icon "factory" %} مشرف إنتاج وأعطال
+          {% elif request.user.role == 'GENERAL_SUPERVISOR' %}{% icon "zap" %} مشرف صيانة وإنتاج
+          {% else %}{{ request.user.get_role_display }}{% endif %}
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <section class="content">
+    {% if messages %}{% for message in messages %}<div class="alert {{ message.tags }}" role="status"><span>{% icon "check_circle" %}</span><div>{{ message }}</div></div>{% endfor %}{% endif %}
+    {% block content %}{% endblock %}
+  </section>
+</main>
+{% endwith %}
+<script>
+  const menu=document.getElementById('menu'),overlay=document.getElementById('navOverlay');
+  function setNav(open){document.body.classList.toggle('nav-open',open);menu?.setAttribute('aria-expanded',String(open));}
+  menu?.addEventListener('click',()=>setNav(!document.body.classList.contains('nav-open')));
+  overlay?.addEventListener('click',()=>setNav(false));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')setNav(false)});
+
+  function switchAdminFactory(factoryId) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('factory', factoryId);
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+  }
+</script>
+{% block scripts %}{% endblock %}
+</body></html>

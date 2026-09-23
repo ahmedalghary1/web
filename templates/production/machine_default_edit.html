@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}تعديل إعدادات ماكينة {{ asset.asset_code }} | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>تعديل إعدادات الماكينة: {{ asset.asset_code }}</h1>
+    <p>هذه القيم تظهر لمشرف الوردية في تطبيق الموبايل كقيم ثابتة (مقفولة بـ Lock) ولا يمكن تعديلها إلا من لوحة التحكم.</p>
+  </div>
+  <div>
+    <a href="{% url 'production:machine_defaults' %}" class="btn ghost">← إلغاء والعودة</a>
+  </div>
+</div>
+
+<div class="card form-panel">
+  <form method="post">
+    {% csrf_token %}
+    
+    <div class="field">
+      <label for="id_default_product">المنتج الافتراضي للماكينة:</label>
+      {{ form.default_product }}
+      <small class="helptext">المنتج المقترح تلقائياً في شاشة الماكينة بالموبايل (ويمكن للمشرف تغييره إن لزم الأمر).</small>
+    </div>
+
+    <div class="field">
+      <label for="id_default_operator">القائم على الماكينة الافتراضي:</label>
+      {{ form.default_operator }}
+      <small class="helptext">العامل المقترح تلقائياً للماكينة (ويمكن للمشرف تغييره واختيار غيره أو إدخال اسم يدوي).</small>
+    </div>
+
+    <div class="field">
+      <label for="id_original_cavities">عدد اللقم الأصلي:</label>
+      {{ form.original_cavities }}
+      <small class="helptext">عدد عيون / لقم الاسطمبة الأصلي للماكينة (يظهر في الموبايل ومقفول عن التعديل).</small>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+      <div class="field">
+        <label for="id_cooling_time_seconds">التبريد (بالثواني):</label>
+        {{ form.cooling_time_seconds }}
+        <small class="helptext">زمن التبريد للماكينة.</small>
+      </div>
+
+      <div class="field">
+        <label for="id_cycle_time_seconds">الدورة (بالثواني):</label>
+        {{ form.cycle_time_seconds }}
+        <small class="helptext">زمن دورة الحقن / النفخ كاملة.</small>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="id_target_cycle_production">الإنتاج حسب زمن الدورة (المستهدف بالوردية):</label>
+      {{ form.target_cycle_production }}
+      <small class="helptext">حجم الإنتاج النظري المستهدف خلال الوردية استناداً لزمن الدورة واللقم.</small>
+    </div>
+
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary">حفظ التغييرات</button>
+      <a href="{% url 'production:machine_defaults' %}" class="btn ghost">إلغاء</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

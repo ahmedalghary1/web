@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}سجل الأعطال والتوقفات | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>سجل الأعطال والتوقفات</h1>
+    <p>متابعة كافة أعطال الماكينات وتوقفات الورديات (الخاصة بالماكينات والتوقفات العامة كمصلى الجمعة وانقطاع الكهرباء)</p>
+  </div>
+</div>
+
+<form method="get" class="filters" style="grid-template-columns: repeat(3, minmax(140px, 1fr));">
+  <div>
+    <label class="sr-only" for="id_date">التاريخ</label>
+    <input type="date" id="id_date" name="date" value="{{ date_filter|default:'' }}" placeholder="التاريخ">
+  </div>
+  <div>
+    <label class="sr-only" for="id_type">نوع التوقف</label>
+    <select id="id_type" name="type">
+      <option value="">كافة أنواع التوقفات</option>
+      <option value="MACHINE_BREAKDOWN" {% if stoppage_type == 'MACHINE_BREAKDOWN' %}selected{% endif %}>عطل ميكانيكي / كهربي بالماكينة</option>
+      <option value="FRIDAY_PRAYER" {% if stoppage_type == 'FRIDAY_PRAYER' %}selected{% endif %}>صلاة الجمعة</option>
+      <option value="POWER_OUTAGE" {% if stoppage_type == 'POWER_OUTAGE' %}selected{% endif %}>انقطاع كهرباء</option>
+      <option value="MOLD_CHANGE" {% if stoppage_type == 'MOLD_CHANGE' %}selected{% endif %}>تغيير اسطمبة</option>
+      <option value="MAINTENANCE" {% if stoppage_type == 'MAINTENANCE' %}selected{% endif %}>صيانة / إصلاح</option>
+      <option value="OTHER" {% if stoppage_type == 'OTHER' %}selected{% endif %}>أخرى</option>
+    </select>
+  </div>
+  {% if is_admin %}
+  <div>
+    <label class="sr-only" for="id_factory">المصنع</label>
+    <select id="id_factory" name="factory">
+      <option value="all" {% if selected_factory_id == 'all' or not selected_factory_id %}selected{% endif %}>كافة المصانع</option>
+      {% for f in factories %}
+      <option value="{{ f.id }}" {% if selected_factory_id == f.id|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="filter-actions">
+    <button type="submit" class="btn primary">{% icon "filter" %} تصفية</button>
+    {% if date_filter or stoppage_type or selected_factory_id != 'all' and selected_factory_id %}
+      <a href="{% url 'production:stoppages' %}" class="btn ghost">{% icon "x" %} إلغاء</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="panel">
+  {% if page_obj.object_list %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>تاريخ الوردية</th>
+          {% if is_admin %}<th>المصنع</th>{% endif %}
+          <th>الوردية</th>
+          <th>المشرف</th>
+          <th>النطاق / الماكينة</th>
+          <th>النوع</th>
+          <th>الوصف</th>
+          <th>المدة (بالدقائق)</th>
+          <th>الإجراء المتخذ</th>
+          <th>تقرير الوردية</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for st in page_obj.object_list %}
+        <tr>
+          <td><strong>{{ st.report.report_date }}</strong></td>
+          {% if is_admin %}<td><span class="badge muted">{% icon "factory" %} {{ st.report.factory.name }}</span></td>{% endif %}
+          <td>{{ st.report.get_shift_display }}</td>
+          <td>{{ st.report.supervisor.display_name }}</td>
+          <td>
+            {% if st.asset %}
+              <strong>{{ st.asset.production_title }}</strong>
+            {% else %}
+              <span class="badge warning">{% icon "info" %} عام لكافة الماكينات</span>
+            {% endif %}
+          </td>
+          <td><b>{{ st.get_stoppage_type_display }}</b></td>
+          <td style="white-space:normal; max-width:240px;">{{ st.description|default:"-" }}</td>
+          <td><strong style="color:var(--error); font-size:15px;">{{ st.duration_minutes }} دقيقة</strong></td>
+          <td style="white-space:normal; max-width:240px;">{{ st.action_taken|default:"-" }}</td>
+          <td>
+            <a href="{% url 'production:report_detail' st.report.id %}" class="btn small ghost">{% icon "eye" %} عرض التقرير</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if stoppage_type %}&type={{ stoppage_type }}{% endif %}">‹</a>
+    {% endif %}
+    <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if stoppage_type %}&type={{ stoppage_type }}{% endif %}">›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty">
+    <span>{% icon "stoppage" size="40" %}</span>
+    <h3>لا توجد توقفات مطابقة للبحث</h3>
+    <p>لم يتم تسجيل توقفات أو أعطال في الفترة أو التصنيف المختار.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

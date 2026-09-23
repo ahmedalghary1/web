@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{% if instance %}تعديل عامل{% else %}إضافة عامل جديد{% endif %} | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>{% if instance %}تعديل عامل: {{ instance.name }}{% else %}إضافة عامل / قائم على الماكينة{% endif %}</h1>
+    <p>تسجيل بيانات العامل ليظهر في قائمة القائمين على الماكينة داخل تطبيق الوردية</p>
+  </div>
+  <div>
+    <a href="{% url 'production:operators' %}" class="btn ghost">← العودة للعمال</a>
+  </div>
+</div>
+
+<div class="card form-panel">
+  <form method="post">
+    {% csrf_token %}
+
+    {% if is_admin and factories %}
+    <div class="field">
+      <label for="id_factory">المصنع التابع له: <span style="color:var(--error);">*</span></label>
+      <select id="id_factory" name="factory">
+        {% for f in factories %}
+        <option value="{{ f.id }}" {% if instance and instance.factory_id == f.id or not instance and factory and factory.id == f.id %}selected{% endif %}>🏭 {{ f.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="id_name">اسم العامل: <span style="color:var(--error);">*</span></label>
+      {{ form.name }}
+      {{ form.name.errors }}
+    </div>
+
+    <div class="field">
+      <label for="id_phone">رقم الهاتف:</label>
+      {{ form.phone }}
+    </div>
+
+
+    <div class="field" style="display:flex; align-items:center; gap:8px;">
+      {{ form.is_active }}
+      <label for="id_is_active" style="margin:0;">العامل نشط ويعمل بالورديات</label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary">حفظ العامل</button>
+      <a href="{% url 'production:operators' %}" class="btn ghost">إلغاء</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

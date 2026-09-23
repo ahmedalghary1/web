@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}تأكيد حذف الماكينة {{ asset.asset_code }}{% endblock %}
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>حذف الماكينة</h1>
+    <p>تأكيد حذف الماكينة من النظام وسجلات الصيانة</p>
+  </div>
+</div>
+
+<section class="panel form-panel" style="max-width: 680px;">
+  <div class="panel-title" style="margin-bottom: 20px;">
+    <h2>بيانات الماكينة: <span style="color: var(--primary);">{{ asset.asset_code }}</span></h2>
+  </div>
+
+  <div class="account-row">
+    <span>كود الماكينة</span>
+    <strong><code>{{ asset.asset_code }}</code></strong>
+  </div>
+  <div class="account-row">
+    <span>المصنع التابع له</span>
+    <strong>{{ asset.factory.name }}</strong>
+  </div>
+  <div class="account-row">
+    <span>نوع الماكينة</span>
+    <strong>{{ asset.get_asset_type_display }}</strong>
+  </div>
+  <div class="account-row">
+    <span>الترتيب في الدورة</span>
+    <strong>#{{ asset.sequence_order }}</strong>
+  </div>
+  <div class="account-row">
+    <span>الحالة</span>
+    <span class="badge {% if asset.is_active and not asset.is_archived %}success{% elif asset.is_archived %}warning{% else %}muted{% endif %}">
+      {% if asset.is_archived %}مؤرشفة{% elif asset.is_active %}نشطة{% else %}متوقفة{% endif %}
+    </span>
+  </div>
+  <div class="account-row">
+    <span>تقارير الصيانة الدورية</span>
+    <strong><span class="badge {% if reports_count %}primary{% else %}muted{% endif %}">{{ reports_count }} تقرير</span></strong>
+  </div>
+  {% if emergency_count %}
+  <div class="account-row">
+    <span>سجلات الصيانة الطارئة</span>
+    <strong><span class="badge warning">{{ emergency_count }} عطل طارئ</span></strong>
+  </div>
+  {% endif %}
+
+  <div style="margin-top: 24px;">
+    {% if reports_count or emergency_count %}
+      <div class="alert error" style="margin-bottom: 20px;">
+        <span>⚠️</span>
+        <div>
+          <strong>تنبيه هام:</strong> هذه الماكينة مسجل لها <strong>{{ reports_count }}</strong> تقرير فحص دوري
+          {% if emergency_count %} و <strong>{{ emergency_count }}</strong> بلاغ صيانة طارئة{% endif %}.
+          <br>
+          حذف الماكينة سيؤدي إلى <strong>إزالة كافة تقاريرها وبنود فحصها وسجلاتها نهائيًا</strong> من النظام.
+          <br>
+          إذا كنت تريد إيقافها فقط عن الصيانة اليومية مع الحفاظ على سجلها التاريخي في التقارير والشهري، يُفضل اختيار <strong>أرشفة الماكينة</strong>.
+        </div>
+      </div>
+    {% else %}
+      <div class="alert info" style="margin-bottom: 20px; background: var(--surface-soft, #f8fafc); border: 1px solid var(--border-soft, #e2e8f0); color: var(--text);">
+        <span>ℹ️</span>
+        <div>
+          هذه الماكينة لا تحتوي على تقارير صيانة أو بلاغات طارئة مسجلة. يمكنك حذفها نهائيًا بأمان ودون التأثير على أي تقارير سابقة.
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="form-actions" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+      <!-- Delete Form -->
+      <form method="post" action="{% url 'dashboard:asset-delete' asset.id %}" style="margin: 0;">
+        {% csrf_token %}
+        <input type="hidden" name="force" value="1">
+        <button type="submit" class="btn" style="background: var(--error, #dc2626); color: #fff; border-color: var(--error, #dc2626);">
+          🗑️ تأكيد الحذف النهائي {% if reports_count %}(مع السجلات){% endif %}
+        </button>
+      </form>
+
+      {% if reports_count or emergency_count %}
+        <!-- Archive Alternative Form -->
+        <form method="post" action="{% url 'dashboard:asset-archive' asset.id %}" style="margin: 0;">
+          {% csrf_token %}
+          <button type="submit" class="btn secondary">
+            📦 أرشفة الماكينة فقط (مع الحفاظ على السجل)
+          </button>
+        </form>
+      {% endif %}
+
+      <a class="btn ghost" href="{% url 'dashboard:assets' %}">إلغاء والعودة</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load icons %}
+{% block title %}إدارة المستخدمين والصلاحيات | لوحة التحكم{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>إدارة المستخدمين والصلاحيات</h1>
+    <p>تحديد أدوار المشرفين (صيانة، إنتاج وأعطال، عام) وتخصيص كل مشرف لمصنعه ليظهر له تقرير مصنعه فقط</p>
+  </div>
+  <a class="btn primary" href="{% url 'dashboard:user-add' %}">{% icon "plus" %} إضافة مستخدم / مشرف جديد</a>
+</div>
+
+<section class="panel">
+  {% if users %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>اسم المستخدم</th>
+          <th>رقم الهاتف</th>
+          <th>الدور والصلاحيات</th>
+          <th>المصنع المخصص له</th>
+          <th>الحالة</th>
+          <th>آخر دخول</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <strong>{{ u.display_name }}</strong>
+            {% if u.is_superuser %}
+              <small style="color: #c0392b; font-weight: bold; display: block;">Superuser</small>
+            {% endif %}
+          </td>
+          <td><code>{{ u.phone }}</code></td>
+          <td>
+            {% if u.role == 'ADMIN' %}
+              <span class="badge" style="background:#fce4ec; color:#c2185b; border-color:#f8bbd0;">{% icon "crown" %} {{ u.get_role_display }}</span>
+            {% elif u.role == 'MAINTENANCE_SUPERVISOR' %}
+              <span class="badge" style="background:#e0f2f1; color:#00796b; border-color:#b2dfdb;">{% icon "tools" %} {{ u.get_role_display }}</span>
+            {% elif u.role == 'PRODUCTION_SUPERVISOR' %}
+              <span class="badge" style="background:#fff3e0; color:#e65100; border-color:#ffe0b2;">{% icon "factory" %} {{ u.get_role_display }}</span>
+            {% elif u.role == 'GENERAL_SUPERVISOR' %}
+              <span class="badge" style="background:#ede7f6; color:#512da8; border-color:#d1c4e9;">{% icon "zap" %} {{ u.get_role_display }}</span>
+            {% else %}
+              <span class="badge muted">{{ u.get_role_display }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.factory %}
+              <strong>{{ u.factory.name }}</strong> ({{ u.factory.code }})
+            {% elif u.role == 'ADMIN' or u.is_superuser %}
+              <span style="color:var(--secondary); font-weight:bold; display:inline-flex; align-items:center; gap:4px;">{% icon "globe" %} كافة المصانع (مسؤول عام)</span>
+            {% else %}
+              <span style="color:var(--error); display:inline-flex; align-items:center; gap:4px;">{% icon "stoppage" %} غير مخصص لمصنع</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge {% if u.is_active %}success{% else %}muted{% endif %}">
+              {% if u.is_active %}{% icon "check" %} نشط{% else %}متوقف{% endif %}
+            </span>
+          </td>
+          <td>{{ u.last_login|date:"Y-m-d h:i A"|default:'لم يسجل الدخول بعد' }}</td>
+          <td>
+            <a href="{% url 'dashboard:user-edit' u.id %}" class="btn small ghost">{% icon "edit" %} تعديل / كلمة المرور</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span>{% icon "users" size="40" %}</span>
+    <h3>لا يوجد مستخدمون حتى الآن</h3>
+    <p>أنشئ أول حساب وحدد دوره والمصنع المسؤول عنه.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

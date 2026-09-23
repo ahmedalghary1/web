@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}المنتجات | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>دليل المنتجات</h1>
+    <p>تعريف وتعديل المنتجات المصنعة بالمصنع وتحديد خاماتها الافتراضية{% if factory %} · <strong>المصنع: {{ factory.name }}</strong>{% endif %}</p>
+  </div>
+  <div>
+    <a href="{% url 'production:product_add' %}" class="btn primary">{% icon "plus" %} إضافة منتج جديد</a>
+  </div>
+</div>
+
+{% if is_admin and factories %}
+<div class="factory-switch-pills" style="margin-bottom:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  <span style="font-weight:700; color:var(--muted); font-size:13px; margin-left:4px;">تصفية المصنع:</span>
+  <a href="?factory=all" class="btn small {% if not factory %}primary{% else %}ghost{% endif %}">{% icon "globe" %} كافة المصانع</a>
+  {% for f in factories %}
+  <a href="?factory={{ f.id }}" class="btn small {% if factory and factory.id == f.id %}primary{% else %}ghost{% endif %}">{% icon "factory" %} {{ f.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          {% if is_admin %}<th>المصنع</th>{% endif %}
+          <th>اسم المنتج</th>
+          <th>الكود</th>
+          <th>وزن القطعة (جرام)</th>
+          <th>الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for prod in products %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          {% if is_admin %}<td><span class="badge muted">{% icon "factory" %} {{ prod.factory.name }}</span></td>{% endif %}
+          <td><strong>{{ prod.name }}</strong></td>
+          <td><code>{{ prod.code|default:"-" }}</code></td>
+          <td>{{ prod.weight_per_piece_grams|default:"-" }} ج</td>
+
+          <td>
+            {% if prod.is_active %}
+              <span class="badge success">{% icon "check" %} نشط</span>
+            {% else %}
+              <span class="badge muted">معطل</span>
+            {% endif %}
+          </td>
+          <td class="actions">
+            <a href="{% url 'production:product_edit' prod.id %}" class="btn small ghost">{% icon "edit" %} تعديل</a>
+            <form method="post" action="{% url 'production:product_toggle' prod.id %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn small {% if prod.is_active %}danger{% else %}success{% endif %}">
+                {% if prod.is_active %}تعطيل{% else %}تفعيل{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center" style="padding:24px;">لا توجد منتجات مسجلة حتى الآن.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

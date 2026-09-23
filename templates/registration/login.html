@@ -1,0 +1,14 @@
+{% load static icons %}<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#12384f"><title>تسجيل الدخول | إدارة الصيانة والإنتاج</title><link rel="stylesheet" href="{% static 'css/app.css' %}"></head>
+<body class="login-page">
+  <div class="login-panel"><section class="login-card">
+    <div class="login-brand"><span class="brand-mark" aria-hidden="true">{% icon "tools" %}</span><h1>مرحبًا بعودتك</h1><p>سجّل الدخول لمتابعة عمليات الصيانة والإنتاج.</p></div>
+    <form method="post">{% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert error" role="alert"><span>{% icon "alert" %}</span><div>رقم الهاتف أو كلمة المرور غير صحيحة.</div></div>{% endif %}
+      <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>{{ form.username }}
+      <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>{{ form.password }}
+      <button class="btn primary full" type="submit">{% icon "logout" %} دخول إلى لوحة التحكم</button>
+    </form>
+  </section></div>
+  <aside class="login-aside"><div><span class="badge success">{% icon "shield" %} نظام موحّد</span><h2>كل عمليات الصيانة والإنتاج<br>في مكان واحد.</h2><p>راقب حالة المصانع، راجع التقارير، ونظّم دورات الفحص والإنتاج بوضوح ودقة.</p><div class="login-feature"><span>{% icon "check" %}</span>متابعة لحظية لحالة كل مصنع</div><div class="login-feature"><span>{% icon "reports" %}</span>تقارير تفصيلية قابلة للمراجعة</div></div></aside>
+</body></html>

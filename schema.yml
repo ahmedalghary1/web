@@ -1,0 +1,320 @@
+openapi: 3.0.3
+info:
+  title: نظام إدارة الصيانة
+  version: 1.0.0
+paths:
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Login'
+          description: ''
+  /api/v1/auth/me/:
+    get:
+      operationId: v1_auth_me_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/refresh/:
+    post:
+      operationId: v1_auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/mobile/bootstrap/:
+    get:
+      operationId: v1_mobile_bootstrap_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/mobile/current-maintenance/:
+    get:
+      operationId: v1_mobile_current_maintenance_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/mobile/reports/:
+    post:
+      operationId: v1_mobile_reports_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportInput'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportInput'
+          description: ''
+  /api/v1/mobile/reports/{id}/:
+    put:
+      operationId: v1_mobile_reports_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportInput'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportInput'
+          description: ''
+  /api/v1/mobile/sync/reports/:
+    post:
+      operationId: v1_mobile_sync_reports_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchSync'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BatchSync'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BatchSync'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSync'
+          description: ''
+components:
+  schemas:
+    AnswerInput:
+      type: object
+      properties:
+        checklist_item_id:
+          type: integer
+          minimum: 1
+        checked:
+          type: boolean
+        note:
+          type: string
+          default: ''
+      required:
+      - checked
+      - checklist_item_id
+    BatchSync:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportInput'
+      required:
+      - reports
+    Factory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: اسم المصنع
+          maxLength: 100
+        code:
+          type: string
+          maxLength: 20
+      required:
+      - code
+      - id
+      - name
+    Login:
+      type: object
+      properties:
+        phone:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - password
+      - phone
+    ReportInput:
+      type: object
+      properties:
+        client_report_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: integer
+          minimum: 1
+        report_date:
+          type: string
+          format: date
+        started_at_device:
+          type: string
+          format: date-time
+        completed_at_device:
+          type: string
+          format: date-time
+        last_modified_at_device:
+          type: string
+          format: date-time
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnswerInput'
+      required:
+      - answers
+      - asset_id
+      - client_report_id
+      - completed_at_device
+      - last_modified_at_device
+      - report_date
+      - started_at_device
+    RoleEnum:
+      enum:
+      - ADMIN
+      - MAINTENANCE_SUPERVISOR
+      type: string
+      description: |-
+        * `ADMIN` - مسؤول النظام
+        * `MAINTENANCE_SUPERVISOR` - مشرف صيانة
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        phone:
+          type: string
+          title: رقم الهاتف
+          maxLength: 30
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          title: الدور
+        factory:
+          allOf:
+          - $ref: '#/components/schemas/Factory'
+          readOnly: true
+      required:
+      - factory
+      - id
+      - phone
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>إعدادات الحساب</h1>
+    <p>بيانات حسابك وتحديث الاسم المعروض في النظام</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px;">
+  <!-- Account Info Card -->
+  <section class="panel">
+    <div class="panel-title" style="margin-bottom:15px;">
+      <h2>بيانات الحساب الحالية</h2>
+    </div>
+    <div class="account-row">
+      <span>اسم المستخدم المعروض</span>
+      <strong style="color:var(--primary);font-weight:700;">{{ request.user.display_name }}</strong>
+    </div>
+    <div class="account-row">
+      <span>رقم الهاتف (تسجيل الدخول)</span>
+      <strong>{{ request.user.phone }}</strong>
+    </div>
+    <div class="account-row">
+      <span>الصلاحية</span>
+      <span class="badge success">{{ request.user.get_role_display }}</span>
+    </div>
+    {% if request.user.factory %}
+    <div class="account-row">
+      <span>المصنع المخصص</span>
+      <strong>{{ request.user.factory.name }}</strong>
+    </div>
+    {% endif %}
+    <p class="hint" style="margin-top:18px;line-height:1.6;">
+      يُستخدم رقم الهاتف للدخول، بينما يُستخدم اسم المستخدم في جميع تقارير الصيانة وقوائم الفحص ولوحة التحكم وتطبيق الهاتف.
+    </p>
+  </section>
+
+  <!-- Edit Name Form Card -->
+  <section class="panel form-panel" style="margin-top:0;">
+    <div class="panel-title" style="margin-bottom:15px;">
+      <h2>تعديل اسم المستخدم</h2>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <div class="field">
+        <label for="{{ form.name.id_for_label }}">اسم المستخدم الجديد</label>
+        {{ form.name }}
+        {% for error in form.name.errors %}
+          <small class="field-error">{{ error }}</small>
+        {% endfor %}
+        <small class="hint" style="margin-top:6px;display:block;">
+          اكتب اسمك الكامل أو اللقب المهني ليظهر في كافة شاشات وسجلات النظام.
+        </small>
+      </div>
+      <div class="form-actions" style="margin-top:20px;">
+        <button type="submit" class="btn primary">حفظ التغييرات</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

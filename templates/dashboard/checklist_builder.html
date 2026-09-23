@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}محرر القائمة - {{ template.name }}{% endblock %}
+
+{% block head %}<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+    <div class="page-title"><div><h1>محرر قائمة الصيانة الدورية</h1><p>{{ template.name }} · رتّب الأقسام والبنود كما ستظهر في التطبيق.</p></div></div>
+    <a href="{% url 'dashboard:checklists' %}" class="btn ghost">رجوع للقوائم</a>
+</div>
+
+<div x-data="checklistBuilder({{ sections_json }})" class="builder-container">
+    <template x-for="(section, sIndex) in sections" :key="section.ui_id">
+        <div class="section-card">
+            <div class="section-header">
+                <span class="drag-handle" title="ترتيب">☰</span>
+                <input type="text" x-model="section.name" placeholder="اسم القسم (مثال: الموتور)">
+                <button @click="moveSectionUp(sIndex)" x-show="sIndex > 0" class="btn ghost small" title="تحريك لأعلى">↑</button>
+                <button @click="moveSectionDown(sIndex)" x-show="sIndex < sections.length - 1" class="btn ghost small" title="تحريك لأسفل">↓</button>
+                <button @click="removeSection(sIndex)" class="btn-icon" title="حذف القسم">🗑</button>
+            </div>
+            
+            <div class="items-list">
+                <template x-for="(item, iIndex) in section.items" :key="item.ui_id">
+                    <div class="item-row">
+                        <span class="drag-handle">↕</span>
+                        <input type="text" x-model="item.text" placeholder="بند الصيانة (مثال: التأكد من مستوى الزيت)">
+                        <button @click="moveItemUp(sIndex, iIndex)" x-show="iIndex > 0" class="btn ghost small" title="تحريك لأعلى">↑</button>
+                        <button @click="moveItemDown(sIndex, iIndex)" x-show="iIndex < section.items.length - 1" class="btn ghost small" title="تحريك لأسفل">↓</button>
+                        <button @click="removeItem(sIndex, iIndex)" class="btn-icon" title="حذف البند">✕</button>
+                    </div>
+                </template>
+                
+                <button @click="addItem(sIndex)" class="add-btn">+ إضافة بند صيانة جديد</button>
+            </div>
+        </div>
+    </template>
+    
+    <button @click="addSection()" class="add-btn">＋ إضافة قسم جديد</button>
+
+    <div class="builder-actions">
+        <button @click="save()" class="btn primary" :disabled="saving" x-text="saving ? 'جاري الحفظ...' : 'حفظ التعديلات'"></button>
+        <span x-show="message" x-text="message" class="badge success"></span>
+        <span x-show="error" x-text="error" class="badge warning"></span>
+    </div>
+</div>
+
+<script>
+function generateId() {
+    return Math.random().toString(36).substr(2, 9);
+}
+
+function checklistBuilder(initialSections) {
+    return {
+        sections: initialSections.map(s => ({
+            ...s, 
+            ui_id: generateId(),
+            items: s.items.map(i => ({...i, ui_id: generateId()}))
+        })),
+        saving: false,
+        message: '',
+        error: '',
+        
+        addSection() {
+            this.sections.push({ id: null, ui_id: generateId(), name: '', items: [] });
+        },
+        removeSection(index) {
+            if(confirm('هل أنت متأكد من حذف هذا القسم بجميع بنوده؟')) {
+                this.sections.splice(index, 1);
+            }
+        },
+        moveSectionUp(index) {
+            if(index > 0) {
+                const temp = this.sections[index - 1];
+                this.sections[index - 1] = this.sections[index];
+                this.sections[index] = temp;
+            }
+        },
+        moveSectionDown(index) {
+            if(index < this.sections.length - 1) {
+                const temp = this.sections[index + 1];
+                this.sections[index + 1] = this.sections[index];
+                this.sections[index] = temp;
+            }
+        },
+        addItem(sectionIndex) {
+            this.sections[sectionIndex].items.push({ id: null, ui_id: generateId(), text: '' });
+        },
+        removeItem(sectionIndex, itemIndex) {
+            this.sections[sectionIndex].items.splice(itemIndex, 1);
+        },
+        moveItemUp(sIndex, iIndex) {
+            if(iIndex > 0) {
+                const items = this.sections[sIndex].items;
+                const temp = items[iIndex - 1];
+                items[iIndex - 1] = items[iIndex];
+                items[iIndex] = temp;
+            }
+        },
+        moveItemDown(sIndex, iIndex) {
+            const items = this.sections[sIndex].items;
+            if(iIndex < items.length - 1) {
+                const temp = items[iIndex + 1];
+                items[iIndex + 1] = items[iIndex];
+                items[iIndex] = temp;
+            }
+        },
+        async save() {
+            this.saving = true;
+            this.message = '';
+            this.error = '';
+            
+            try {
+                const response = await fetch('', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(this.sections)
+                });
+                
+                const data = await response.json();
+                if(response.ok) {
+                    this.message = data.message;
+                    setTimeout(() => this.message = '', 3000);
+                } else {
+                    this.error = data.detail || 'حدث خطأ أثناء الحفظ';
+                }
+            } catch(e) {
+                this.error = 'حدث خطأ في الاتصال بالخادم';
+            } finally {
+                this.saving = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

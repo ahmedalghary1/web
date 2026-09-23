@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{% if instance %}تعديل منتج{% else %}إضافة منتج جديد{% endif %} | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>{% if instance %}تعديل منتج: {{ instance.name }}{% else %}إضافة منتج جديد{% endif %}</h1>
+    <p>أدخل بيانات المنتج ليظهر في قائمة المنتجات في شاشات الإنتاج بالموبايل والداشبورد</p>
+  </div>
+  <div>
+    <a href="{% url 'production:products' %}" class="btn ghost">← العودة للمنتجات</a>
+  </div>
+</div>
+
+<div class="card form-panel">
+  <form method="post">
+    {% csrf_token %}
+
+    {% if is_admin and factories %}
+    <div class="field">
+      <label for="id_factory">المصنع التابع له: <span style="color:var(--error);">*</span></label>
+      <select id="id_factory" name="factory">
+        {% for f in factories %}
+        <option value="{{ f.id }}" {% if instance and instance.factory_id == f.id or not instance and factory and factory.id == f.id %}selected{% endif %}>🏭 {{ f.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="id_name">اسم المنتج: <span style="color:var(--error);">*</span></label>
+      {{ form.name }}
+      {{ form.name.errors }}
+    </div>
+
+    <div class="field">
+      <label for="id_code">كود المنتج:</label>
+      {{ form.code }}
+      <small class="helptext">كود اختياري لتمييز المنتج (مثل: P-200).</small>
+    </div>
+
+    <div class="field">
+      <label for="id_weight_per_piece_grams">وزن القطعة (بالجرام):</label>
+      {{ form.weight_per_piece_grams }}
+      <small class="helptext">الوزن النمطي للقطعة بالجرام لحساب الإنتاجية بدقة.</small>
+    </div>
+
+
+    <div class="field" style="display:flex; align-items:center; gap:8px;">
+      {{ form.is_active }}
+      <label for="id_is_active" style="margin:0;">المنتج نشط ومتاح للاختيار بالوردية</label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary">حفظ المنتج</button>
+      <a href="{% url 'production:products' %}" class="btn ghost">إلغاء</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

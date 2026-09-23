@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}تقارير الوردية | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>سجل تقارير الورديات</h1>
+    <p>عرض وتصفية تقارير الإنتاج لجميع الورديات والماكينات</p>
+  </div>
+</div>
+
+<form method="get" class="filters reports-filter">
+  <div>
+    <label class="sr-only" for="id_date">التاريخ</label>
+    <input type="date" id="id_date" name="date" value="{{ date_filter|default:'' }}" placeholder="التاريخ">
+  </div>
+  <div>
+    <label class="sr-only" for="id_shift">الوردية</label>
+    <select id="id_shift" name="shift">
+      <option value="">كافة الورديات</option>
+      <option value="FIRST" {% if shift_filter == 'FIRST' %}selected{% endif %}>الوردية الأولى (صباحية)</option>
+      <option value="SECOND" {% if shift_filter == 'SECOND' %}selected{% endif %}>الوردية الثانية (مسائية)</option>
+      <option value="THIRD" {% if shift_filter == 'THIRD' %}selected{% endif %}>الوردية الثالثة (ليلية)</option>
+    </select>
+  </div>
+  <div>
+    <label class="sr-only" for="id_status">الحالة</label>
+    <select id="id_status" name="status">
+      <option value="">كافة الحالات</option>
+      <option value="PENDING_HANDOVER" {% if status_filter == 'PENDING_HANDOVER' %}selected{% endif %}>بانتظار الاستلام</option>
+      <option value="CONFIRMED" {% if status_filter == 'CONFIRMED' %}selected{% endif %}>تم التأكيد والاستلام</option>
+      <option value="DRAFT" {% if status_filter == 'DRAFT' %}selected{% endif %}>مسودة</option>
+    </select>
+  </div>
+  {% if is_admin %}
+  <div>
+    <label class="sr-only" for="id_factory">المصنع</label>
+    <select id="id_factory" name="factory">
+      <option value="all" {% if selected_factory_id == 'all' or not selected_factory_id %}selected{% endif %}>كافة المصانع</option>
+      {% for f in factories %}
+      <option value="{{ f.id }}" {% if selected_factory_id == f.id|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="filter-actions">
+    <button type="submit" class="btn primary">{% icon "filter" %} تصفية</button>
+    {% if date_filter or shift_filter or status_filter or selected_factory_id != 'all' and selected_factory_id %}
+      <a href="{% url 'production:reports' %}" class="btn ghost">{% icon "x" %} إلغاء</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="panel">
+  {% if page_obj.object_list %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>التاريخ</th>
+          {% if is_admin %}<th>المصنع</th>{% endif %}
+          <th>الوردية</th>
+          <th>مشرف الوردية</th>
+          <th>عدد الماكينات</th>
+          <th>إجمالي الإنتاج</th>
+          <th>الأعطال</th>
+          <th>حالة التسليم</th>
+          <th>المشرف المستلم</th>
+          <th>التفاصيل</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rep in page_obj.object_list %}
+        <tr>
+          <td><strong>{{ rep.report_date }}</strong></td>
+          {% if is_admin %}<td><span class="badge muted">{% icon "factory" %} {{ rep.factory.name }}</span></td>{% endif %}
+          <td><b>{{ rep.get_shift_display }}</b></td>
+          <td>
+            <strong>{{ rep.machine_entries.count }}</strong>
+            {% with p_count=rep.changed_products_count o_count=rep.changed_operators_count %}
+              {% if p_count or o_count %}
+                <div style="margin-top:3px;">
+                  <span class="badge warning" style="font-size:10px; padding:1px 5px;" title="تم تغيير العامل أو المنتج عن الافتراضي">
+                    {{ p_count|add:o_count }} تغيير
+                  </span>
+                </div>
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td>
+            {% with s_count=rep.stoppages.count %}
+              {% if s_count > 0 %}
+                <span class="badge warning">{% icon "stoppage" %} {{ s_count }} توقف</span>
+              {% else %}
+                <span class="badge success">{% icon "check" %} 0</span>
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td>
+            {% if rep.status == 'CONFIRMED' %}
+              <span class="badge success">{% icon "check" %} مؤكد ومستلم</span>
+            {% elif rep.status == 'PENDING_HANDOVER' %}
+              <span class="badge warning">{% icon "clock" %} بانتظار الاستلام</span>
+            {% else %}
+              <span class="badge muted">مسودة</span>
+            {% endif %}
+          </td>
+          <td>{{ rep.handover_to_supervisor.display_name|default:"-" }}</td>
+          <td>
+            <a href="{% url 'production:report_detail' rep.id %}" class="btn small ghost">{% icon "eye" %} عرض التفاصيل</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if shift_filter %}&shift={{ shift_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">‹</a>
+    {% endif %}
+    <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if shift_filter %}&shift={{ shift_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty">
+    <span>{% icon "reports" size="40" %}</span>
+    <h3>لا توجد تقارير مطابقة للبحث</h3>
+    <p>جرّب تعديل خيارات التصفية أو البحث عن تاريخ آخر.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

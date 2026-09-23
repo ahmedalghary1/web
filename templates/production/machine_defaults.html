@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}إعدادات الماكينات الافتراضية | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>إعدادات الإنتاج الافتراضية للماكينات</h1>
+    <p>تحديد عدد اللقم الأصلي، التبريد، الدورة، الإنتاج المستهدف، والمنتج الافتراضي لكل ماكينة (قابلة للتعديل من لوحة التحكم فقط وتظهر كقيم مقفولة في تطبيق الموبايل){% if factory %} · <strong>المصنع: {{ factory.name }}</strong>{% else %} · <strong>كافة المصانع</strong>{% endif %}</p>
+  </div>
+</div>
+
+{% if is_admin and factories %}
+<div class="factory-switch-pills" style="margin-bottom:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+  <span style="font-weight:700; color:var(--muted); font-size:13px; margin-left:4px;">تصفية المصنع:</span>
+  <a href="?factory=all" class="btn small {% if not factory %}primary{% else %}ghost{% endif %}">{% icon "globe" %} كافة المصانع</a>
+  {% for f in factories %}
+  <a href="?factory={{ f.id }}" class="btn small {% if factory and factory.id == f.id %}primary{% else %}ghost{% endif %}">{% icon "factory" %} {{ f.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% if not factory %}<th>المصنع</th>{% endif %}
+          <th>كود الماكينة</th>
+          <th>المنتج الافتراضي</th>
+          <th>العامل الافتراضي</th>
+          <th>عدد اللقم الأصلي</th>
+          <th>التبريد (ث)</th>
+          <th>الدورة (ث)</th>
+          <th>الإنتاج حسب زمن الدورة</th>
+          <th>الإجراء</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for asset in assets %}
+        {% with def=asset.production_default %}
+        <tr>
+          {% if not factory %}<td><span class="badge ghost" style="font-weight:600;">{{ asset.factory.name }}</span></td>{% endif %}
+          <td>
+            <strong>{{ asset.asset_code }}</strong>
+            {% if not asset.is_active %}
+              <span class="badge muted" style="font-size:11px; margin-right:4px;">متوقفة</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if def and def.default_product %}
+              <strong>{{ def.default_product.name }}</strong>
+            {% else %}
+              <span style="color:var(--muted);">- غير محدد -</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if def and def.default_operator %}
+              <strong>{{ def.default_operator.name }}</strong>
+            {% else %}
+              <span style="color:var(--muted);">- غير محدد -</span>
+            {% endif %}
+          </td>
+          <td>
+            <strong>{{ def.original_cavities|default:1 }}</strong>
+          </td>
+          <td>
+            <strong>{{ def.cooling_time_seconds|default:"0.0" }} ث</strong>
+          </td>
+          <td>
+            <strong>{{ def.cycle_time_seconds|default:"0.0" }} ث</strong>
+          </td>
+          <td>
+            <strong>{{ def.target_cycle_production|default:"0.0" }}</strong>
+          </td>
+          <td>
+            <a href="{% url 'production:machine_default_edit' asset.id %}" class="btn small primary">{% icon "edit" %} تعديل الإعدادات</a>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr>
+          <td colspan="{% if not factory %}9{% else %}8{% endif %}" class="text-center" style="padding:24px;">لا توجد ماكينات مسجلة.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}تعديل {{ report.asset.maintenance_title }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+    <div class="page-title">
+        <div>
+            <h1>تعديل {{ report.asset.maintenance_title }}</h1>
+            <p>{{ report.factory.name }} · {{ report.report_date }}</p>
+        </div>
+    </div>
+    <a href="{% url 'dashboard:report_detail' report.pk %}" class="btn ghost">إلغاء</a>
+</div>
+
+<div class="detail-grid">
+    <article><span>الماكينة</span><strong>{{ report.asset.maintenance_title }}</strong><small>{{ report.asset.get_asset_type_display }} — كود {{ report.asset.asset_code }} — ترتيب {{ report.asset.sequence_order }}</small></article>
+    <article><span>مشرف الصيانة</span><strong>{{ report.supervisor.display_name }}</strong><small>أُرسل {{ report.completed_at|date:'Y-m-d H:i' }}</small></article>
+</div>
+
+<form method="POST">
+    {% csrf_token %}
+    {% for section, answers in sections %}
+    <section class="panel checklist">
+        <h2>{{ section }}</h2>
+        {% for a in answers %}
+        <div class="report-answer-edit">
+            <input type="checkbox" name="checked_{{ a.id }}" aria-label="حالة {{ a.checklist_item.text }}" {% if a.checked %}checked{% endif %}>
+            <div>
+                <strong>{{ a.checklist_item.text }}</strong>
+                <textarea name="note_{{ a.id }}" placeholder="أضف ملاحظة اختيارية..." rows="2">{{ a.note }}</textarea>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+
+    <section class="panel staff-edit-panel" style="margin-top:24px;border-right:4px solid #3b82f6">
+        <h2>فريق الصيانة والاعتماد</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-top:16px;">
+            <div>
+                <label for="cleaner_name" style="display:block;margin-bottom:6px;font-weight:600">🧹 القائم بالنظافة</label>
+                <input type="text" id="cleaner_name" name="cleaner_name" value="{{ report.cleaner_name }}" class="form-control" placeholder="اسم القائم بالنظافة" style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;">
+            </div>
+            <div>
+                <label for="mechanical_technician" style="display:block;margin-bottom:6px;font-weight:600">🔧 القائم بالصيانة الميكانيكية</label>
+                <input type="text" id="mechanical_technician" name="mechanical_technician" value="{{ report.mechanical_technician }}" class="form-control" placeholder="اسم فني الميكانيكا" style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;">
+            </div>
+            <div>
+                <label for="electrical_technician" style="display:block;margin-bottom:6px;font-weight:600">⚡ القائم بالصيانة الكهربية</label>
+                <input type="text" id="electrical_technician" name="electrical_technician" value="{{ report.electrical_technician }}" class="form-control" placeholder="اسم فني الكهرباء" style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;">
+            </div>
+            <div>
+                <label for="maintenance_manager" style="display:block;margin-bottom:6px;font-weight:600">👔 مدير الصيانة</label>
+                <input type="text" id="maintenance_manager" name="maintenance_manager" value="{{ report.maintenance_manager }}" class="form-control" placeholder="اسم مدير الصيانة" style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;">
+            </div>
+        </div>
+    </section>
+
+    <div class="form-actions">
+        <button type="submit" class="btn success">حفظ التعديلات</button>
+    </div>
+</form>
+{% endblock %}

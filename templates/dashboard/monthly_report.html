@@ -1,0 +1,645 @@
+{% extends 'base.html' %}
+{% load icons %}
+{% block title %}تقرير الصيانة الشهري والدوري الشامل | إدارة الصيانة{% endblock %}
+
+{% block head %}
+<style>
+  .report-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .report-kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .report-kpi-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 4px;
+  }
+  .report-kpi-card.primary::before { background: linear-gradient(90deg, #3b82f6, #1d4ed8); }
+  .report-kpi-card.success::before { background: linear-gradient(90deg, #10b981, #059669); }
+  .report-kpi-card.warning::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+  .report-kpi-card.info::before { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+
+  .report-kpi-card .kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .report-kpi-card .kpi-icon {
+    font-size: 20px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+  }
+  .report-kpi-card .kpi-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--primary);
+    margin: 10px 0 4px;
+    line-height: 1.2;
+  }
+  .report-kpi-card .kpi-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .quick-periods {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .quick-period-btn {
+    padding: 6px 14px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all var(--transition);
+  }
+  .quick-period-btn:hover {
+    border-color: var(--secondary);
+    color: var(--secondary);
+  }
+  .quick-period-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(18,56,79,.18);
+  }
+
+  .mini-progress {
+    width: 100%;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .mini-progress-bar {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 300ms ease;
+  }
+
+  .print-header {
+    display: none;
+  }
+
+  @media (max-width: 1100px) {
+    .report-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 650px) {
+    .report-kpi-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Print Styles */
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 12mm 10mm;
+    }
+    body {
+      background: #fff !important;
+      color: #000 !important;
+      font-size: 11pt !important;
+    }
+    .sidebar, .topbar, .filters, .quick-periods, .toolbar .btn,
+    .pagination, .nav-overlay, .actions, .no-print {
+      display: none !important;
+    }
+    main {
+      margin-right: 0 !important;
+      min-height: auto !important;
+    }
+    .content {
+      padding: 0 !important;
+      max-width: 100% !important;
+    }
+    .print-header {
+      display: block !important;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #0f172a;
+    }
+    .print-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .print-header-top h1 {
+      font-size: 20pt;
+      margin: 0;
+      color: #0f172a;
+    }
+    .print-header-top p {
+      margin: 2px 0 0;
+      color: #475569;
+      font-size: 11pt;
+    }
+    .print-meta {
+      display: flex;
+      gap: 20px;
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 8px;
+    }
+    .panel, .card, .report-kpi-card {
+      box-shadow: none !important;
+      border: 1px solid #cbd5e1 !important;
+      break-inside: avoid;
+      margin-bottom: 16px !important;
+      padding: 12px !important;
+    }
+    .report-kpi-grid {
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 10px !important;
+      margin-bottom: 16px !important;
+    }
+    table {
+      font-size: 9.5pt !important;
+      width: 100% !important;
+      min-width: 100% !important;
+    }
+    th, td {
+      padding: 7px 8px !important;
+      border: 1px solid #e2e8f0 !important;
+    }
+    th {
+      background: #f1f5f9 !important;
+      color: #0f172a !important;
+      font-weight: 700 !important;
+    }
+    .badge {
+      border: 1px solid #cbd5e1 !important;
+      background: transparent !important;
+      color: #000 !important;
+      font-size: 8pt !important;
+      padding: 2px 6px !important;
+    }
+    .badge:before { display: none !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Official Print Header (Visible only on print / PDF) -->
+<div class="print-header">
+  <div class="print-header-top">
+    <div>
+      <h1>مجموعة الوسام الصناعية</h1>
+      <p>تقرير متابعة الصيانة الدورية الشامل</p>
+    </div>
+    <div style="text-align:left;">
+      <div style="font-size:14pt;font-weight:bold;color:#0f172a;">فترة التقرير</div>
+      <div style="font-size:11pt;color:#334155;">{{ date_from }} إلى {{ date_to }}</div>
+    </div>
+  </div>
+  <div class="print-meta">
+    <span><b>أيام العمل المستهدفة:</b> {{ workdays_count }} يوم</span>
+    <span><b>عدد التقارير المنفذة:</b> {{ total_reports }} تقرير</span>
+    <span><b>نسبة الالتزام:</b> {{ compliance_rate }}%</span>
+    <span><b>تاريخ الاستخراج:</b> {{ generated_at|date:'Y-m-d H:i' }}</span>
+    <span><b>المستخرج:</b> {{ request.user.display_name }}</span>
+  </div>
+</div>
+
+<!-- Screen Toolbar -->
+<div class="toolbar no-print">
+  <div class="page-title">
+    <div>
+      <h1>تقرير الصيانة الشهري والدوري الشامل</h1>
+      <p>ملخص تحليلي تنفيذي لمؤشرات الصيانة والماكينات خلال الفترة من <strong>{{ date_from }}</strong> إلى <strong>{{ date_to }}</strong></p>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <button type="button" class="btn ghost" onclick="window.print()" title="طباعة أو حفظ كـ PDF">
+      {% icon "reports" %} طباعة التقرير / PDF
+    </button>
+    <a class="btn success" href="{% url 'dashboard:export_monthly_report_csv' %}?{{ query_string }}" title="تصدير جدول البيانات إلى Excel">
+      {% icon "excel" %} تصدير Excel (CSV)
+    </a>
+  </div>
+</div>
+
+<!-- Quick Period Buttons & Filter Panel -->
+<div class="panel no-print" style="padding:16px 20px;margin-bottom:20px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
+    <span style="font-weight:700;color:var(--primary);">الفترات الزمنية السريعة:</span>
+    <div class="quick-periods" style="margin-bottom:0;">
+      <a href="?period=current_month{% if selected_factory %}&factory={{ selected_factory }}{% endif %}{% if selected_type %}&asset_type={{ selected_type }}{% endif %}" class="quick-period-btn {% if period == 'current_month' %}active{% endif %}">{% icon "calendar" %} الشهر الحالي</a>
+      <a href="?period=last_month{% if selected_factory %}&factory={{ selected_factory }}{% endif %}{% if selected_type %}&asset_type={{ selected_type }}{% endif %}" class="quick-period-btn {% if period == 'last_month' %}active{% endif %}">{% icon "clock" %} الشهر السابق</a>
+      <a href="?period=last_30_days{% if selected_factory %}&factory={{ selected_factory }}{% endif %}{% if selected_type %}&asset_type={{ selected_type }}{% endif %}" class="quick-period-btn {% if period == 'last_30_days' %}active{% endif %}">{% icon "clock" %} آخر 30 يوم</a>
+    </div>
+  </div>
+
+  <form method="get" class="filters reports-filter" style="margin-bottom:0;padding:12px;background:var(--bg);box-shadow:none;border-radius:12px;">
+    <input type="hidden" name="period" value="custom">
+    
+    <div>
+      <label for="factory" style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--muted)">المصنع</label>
+      <select id="factory" name="factory" aria-label="المصنع">
+        <option value="">كل المصانع</option>
+        {% for f in factories %}
+          <option value="{{ f.id }}" {% if selected_factory == f.id|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="asset_type" style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--muted)">نوع الماكينة</label>
+      <select id="asset_type" name="asset_type" aria-label="نوع الماكينة">
+        <option value="">كل أنواع الماكينات</option>
+        {% for v, l in types %}
+          <option value="{{ v }}" {% if selected_type == v %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="date_from" style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--muted)">من تاريخ</label>
+      <input type="date" id="date_from" name="date_from" value="{{ date_from|date:'Y-m-d' }}" required>
+    </div>
+
+    <div>
+      <label for="date_to" style="display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:var(--muted)">إلى تاريخ</label>
+      <input type="date" id="date_to" name="date_to" value="{{ date_to|date:'Y-m-d' }}" required>
+    </div>
+
+    <div class="filter-actions" style="grid-column: 1 / -1; display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+      <button class="btn secondary" type="submit">{% icon "filter" %} تحديث التقرير</button>
+      <a class="btn ghost" href="{% url 'dashboard:monthly_report' %}">{% icon "x" %} إعادة ضبط</a>
+    </div>
+  </form>
+</div>
+
+<!-- Executive Summary KPI Cards -->
+<div class="report-kpi-grid">
+  <!-- Card 1: Completed Reports & Compliance Rate -->
+  <article class="report-kpi-card primary">
+    <div class="kpi-header">
+      <span>فحوصات الصيانة المنفذة</span>
+      <span class="kpi-icon" style="color:#2563eb;background:#eff6ff;">{% icon "daily_check" %}</span>
+    </div>
+    <div class="kpi-value">{{ total_reports }} <span style="font-size:18px;font-weight:600;color:var(--muted);">/ {{ expected_reports_count }}</span></div>
+    <div class="kpi-footer">
+      <span>معدل الالتزام بالدورة</span>
+      <span class="badge {% if compliance_rate >= 90 %}success{% elif compliance_rate >= 70 %}warning{% else %}muted{% endif %}">
+        {{ compliance_rate }}%
+      </span>
+    </div>
+    <div class="mini-progress">
+      <div class="mini-progress-bar" style="width:{{ compliance_rate }}%;background:#3b82f6;"></div>
+    </div>
+  </article>
+
+  <!-- Card 2: Checklist Items Health -->
+  <article class="report-kpi-card success">
+    <div class="kpi-header">
+      <span>سلامة بنود الصيانة</span>
+      <span class="kpi-icon" style="color:#059669;background:#ecfdf5;">{% icon "check_circle" %}</span>
+    </div>
+    <div class="kpi-value">{{ overall_checklist_pct }}%</div>
+    <div class="kpi-footer">
+      <span>{{ total_answers_checked }} بند سليم</span>
+      <small>من إجمالي {{ total_answers_evaluated }}</small>
+    </div>
+    <div class="mini-progress">
+      <div class="mini-progress-bar" style="width:{{ overall_checklist_pct }}%;background:#10b981;"></div>
+    </div>
+  </article>
+
+  <!-- Card 3: Emergency Breakdowns -->
+  <article class="report-kpi-card warning">
+    <div class="kpi-header">
+      <span>الأعطال والصيانة الطارئة</span>
+      <span class="kpi-icon" style="color:#d97706;background:#fffbeb;">{% icon "stoppage" %}</span>
+    </div>
+    <div class="kpi-value" style="color:{% if total_emergency_cases > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+      {{ total_emergency_cases }}
+    </div>
+    <div class="kpi-footer">
+      <span>أعطال طارئة خلال الفترة</span>
+      {% if total_emergency_cases == 0 %}
+        <span class="badge success">{% icon "check" %} مستقرة 100%</span>
+      {% else %}
+        <span class="badge warning">{{ total_emergency_cases }} أعطال</span>
+      {% endif %}
+    </div>
+  </article>
+
+  <!-- Card 4: Assets Serviced -->
+  <article class="report-kpi-card info">
+    <div class="kpi-header">
+      <span>الماكينات المشمولة بالصيانة</span>
+      <span class="kpi-icon" style="color:#0891b2;background:#ecfeff;">{% icon "machine" %}</span>
+    </div>
+    <div class="kpi-value">{{ serviced_assets_count }} <span style="font-size:18px;font-weight:600;color:var(--muted);">/ {{ total_active_assets }}</span></div>
+    <div class="kpi-footer">
+      <span>تغطية ماكينات ومكابس المصانع</span>
+      <span class="badge muted">نشطة</span>
+    </div>
+  </article>
+</div>
+
+<!-- Section 1: Machine Performance Breakdown -->
+<section class="panel">
+  <div class="panel-title">
+    <div>
+      <h2>تحليل الصيانة حسب الماكينة والمكبس</h2>
+      <small style="color:var(--muted);">معدل الصيانة الدورية ونسبة السلامة وحالات الأعطال المسجلة لكل ماكينة</small>
+    </div>
+    <span class="badge muted">{{ machines_summary|length }} ماكينات تمت صيانتها</span>
+  </div>
+
+  {% if machines_summary %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>كود الماكينة</th>
+          <th>المصنع</th>
+          <th>النوع</th>
+          <th class="text-center">مرات الصيانة الدورية</th>
+          <th>سلامة بنود الصيانة</th>
+          <th class="text-center">الأعطال الطارئة</th>
+          <th>تاريخ آخر صيانة</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in machines_summary %}
+        <tr>
+          <td>
+            <strong>{{ m.asset.asset_code }}</strong>
+            {% if m.asset.name %}<small style="display:block;color:var(--muted)">{{ m.asset.name }}</small>{% endif %}
+          </td>
+          <td>{{ m.factory.name }}</td>
+          <td>{{ m.asset.get_asset_type_display }}</td>
+          <td class="text-center">
+            <span class="badge muted" style="font-size:12px;">{{ m.reports_count }} مرة</span>
+          </td>
+          <td style="min-width:140px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">
+              <span>{{ m.checked_count }} / {{ m.total_items }}</span>
+              <strong style="color:{% if m.health_pct >= 90 %}#10b981{% elif m.health_pct >= 75 %}#f59e0b{% else %}#ef4444{% endif %};">{{ m.health_pct }}%</strong>
+            </div>
+            <div class="mini-progress">
+              <div class="mini-progress-bar" style="width:{{ m.health_pct }}%;background:{% if m.health_pct >= 90 %}#10b981{% elif m.health_pct >= 75 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+            </div>
+          </td>
+          <td class="text-center">
+            {% if m.emergencies > 0 %}
+              <span class="badge warning" style="color:#b91c1c;background:#fee2e2;border-color:#fecaca;">{{ m.emergencies }} طارئة</span>
+            {% else %}
+              <span style="color:#10b981;font-weight:600;">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <strong>{{ m.last_date }}</strong>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span>⚙️</span>
+    <h3>لا توجد بيانات صيانة للماكينات</h3>
+    <p>لم يتم تسجيل أي تقارير صيانة في الفترة الزمنية المحددة.</p>
+  </div>
+  {% endif %}
+</section>
+
+<!-- Section 2: Emergency Incidents Log (Displayed if any emergencies exist) -->
+{% if emergency_incidents %}
+<section class="panel" style="border-right:4px solid #f59e0b;">
+  <div class="panel-title">
+    <div>
+      <h2 style="color:#b45309;">سجل الأعطال والصيانة الطارئة خلال الفترة</h2>
+      <small style="color:var(--muted);">كافة الأعطال الطارئة المسجلة وإجراءات الإصلاح المتخذة</small>
+    </div>
+    <span class="badge warning">{{ emergency_incidents|length }} عطل مسجل</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>التاريخ</th>
+          <th>المصنع</th>
+          <th>الماكينة / المكبس</th>
+          <th>وصف العطل</th>
+          <th>المسؤول</th>
+          <th>ملاحظات والإجراءات</th>
+          <th class="no-print">التقرير</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for em in emergency_incidents %}
+        <tr>
+          <td><strong>{{ em.date }}</strong></td>
+          <td>{{ em.report.factory.name }}</td>
+          <td>
+            <strong>{{ em.asset.asset_code }}</strong>
+            <small style="display:block;color:var(--muted);">{{ em.asset.get_asset_type_display }}</small>
+          </td>
+          <td><strong style="color:#e11d48;">{{ em.issue_description }}</strong></td>
+          <td>{{ em.responsible_person }}</td>
+          <td>{{ em.notes|default:"—" }}</td>
+          <td class="no-print">
+            <a href="{% url 'dashboard:report_detail' em.report.id %}" class="btn ghost small">عرض التقرير</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Section 3: Team Contribution & Personnel Stats -->
+<section class="panel" style="border-right:4px solid #3b82f6;">
+  <div class="panel-title">
+    <div>
+      <h2>إحصائيات فريق العمل والاعتماد</h2>
+      <small style="color:var(--muted);">مشاركات فنيي الصيانة والمشرفين والاعتماد الإداري خلال الفترة</small>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
+    <!-- Cleaners -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;">
+      <h3 style="font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:6px;color:var(--primary);">
+        <span>🧹</span> القائم بالنظافة
+      </h3>
+      {% if cleaner_counts %}
+        <ul style="list-style:none;padding:0;margin:0;display:grid;gap:6px;">
+          {% for name, count in cleaner_counts %}
+            <li style="display:flex;justify-content:space-between;font-size:13px;border-bottom:1px dashed var(--border);padding-bottom:4px;">
+              <span>{{ name }}</span>
+              <strong style="color:var(--secondary)">{{ count }} تقرير</strong>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <small style="color:var(--muted);">لم يتم تدوين أسماء</small>
+      {% endif %}
+    </div>
+
+    <!-- Mechanical Techs -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;">
+      <h3 style="font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:6px;color:var(--primary);">
+        <span>🔧</span> فنيو الميكانيكا
+      </h3>
+      {% if mechanical_counts %}
+        <ul style="list-style:none;padding:0;margin:0;display:grid;gap:6px;">
+          {% for name, count in mechanical_counts %}
+            <li style="display:flex;justify-content:space-between;font-size:13px;border-bottom:1px dashed var(--border);padding-bottom:4px;">
+              <span>{{ name }}</span>
+              <strong style="color:var(--secondary)">{{ count }} تقرير</strong>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <small style="color:var(--muted);">لم يتم تدوين أسماء</small>
+      {% endif %}
+    </div>
+
+    <!-- Electrical Techs -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;">
+      <h3 style="font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:6px;color:var(--primary);">
+        <span>⚡</span> فنيو الكهرباء
+      </h3>
+      {% if electrical_counts %}
+        <ul style="list-style:none;padding:0;margin:0;display:grid;gap:6px;">
+          {% for name, count in electrical_counts %}
+            <li style="display:flex;justify-content:space-between;font-size:13px;border-bottom:1px dashed var(--border);padding-bottom:4px;">
+              <span>{{ name }}</span>
+              <strong style="color:var(--secondary)">{{ count }} تقرير</strong>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <small style="color:var(--muted);">لم يتم تدوين أسماء</small>
+      {% endif %}
+    </div>
+
+    <!-- Managers -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;">
+      <h3 style="font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:6px;color:var(--primary);">
+        <span>👔</span> إدارة الصيانة
+      </h3>
+      {% if manager_counts %}
+        <ul style="list-style:none;padding:0;margin:0;display:grid;gap:6px;">
+          {% for name, count in manager_counts %}
+            <li style="display:flex;justify-content:space-between;font-size:13px;border-bottom:1px dashed var(--border);padding-bottom:4px;">
+              <span>{{ name }}</span>
+              <strong style="color:var(--secondary)">{{ count }} تقرير</strong>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <small style="color:var(--muted);">لم يتم تدوين أسماء</small>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Section 4: Detailed Daily Reports Log -->
+<section class="panel">
+  <div class="panel-title">
+    <div>
+      <h2>السجل اليومي المفصل لتقارير الصيانة</h2>
+      <small style="color:var(--muted);">استعراض زمني لكافة تقارير الصيانة الدورية المنفذة خلال الفترة</small>
+    </div>
+    <span class="date">{{ reports|length }} تقرير مسجل</span>
+  </div>
+
+  {% if reports %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>التاريخ</th>
+          <th>المصنع</th>
+          <th>مهمة الصيانة الدورية</th>
+          <th>النوع</th>
+          <th>المشرف</th>
+          <th>وقت الإرسال</th>
+          <th>نتيجة الصيانة الدورية</th>
+          <th>فريق الصيانة المسجل</th>
+          <th class="no-print"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reports %}
+        <tr>
+          <td><strong>{{ r.report_date }}</strong></td>
+          <td>{{ r.factory.name }}</td>
+          <td><strong>{{ r.asset.maintenance_title }}</strong></td>
+          <td>{{ r.asset.get_asset_type_display }}</td>
+          <td>{{ r.supervisor.display_name }}</td>
+          <td>{{ r.completed_at|date:'H:i' }}</td>
+          <td>
+            <span class="badge success">{{ r.checked_count }} سليم</span>
+            {% if r.unchecked_count %}
+              <span class="badge muted">{{ r.unchecked_count }} غير محدد</span>
+            {% endif %}
+            {% if r.emergency_count %}
+              <span class="badge warning" style="color:#b91c1c;background:#fee2e2;">{{ r.emergency_count }} طارئة</span>
+            {% endif %}
+          </td>
+          <td>
+            <small style="display:block;color:var(--muted);">
+              {% if r.cleaner_name %}🧹 {{ r.cleaner_name }}{% endif %}
+              {% if r.mechanical_technician %} 🔧 {{ r.mechanical_technician }}{% endif %}
+              {% if r.electrical_technician %} ⚡ {{ r.electrical_technician }}{% endif %}
+              {% if r.maintenance_manager %} 👔 {{ r.maintenance_manager }}{% endif %}
+              {% if not r.cleaner_name and not r.mechanical_technician and not r.electrical_technician and not r.maintenance_manager %}—{% endif %}
+            </small>
+          </td>
+          <td class="no-print">
+            <a class="btn ghost small" href="{% url 'dashboard:report_detail' r.id %}">عرض التفاصيل</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span>▤</span>
+    <h3>لا توجد تقارير في هذه الفترة</h3>
+    <p>جرّب اختيار فترة زمنية أخرى أو تغيير الفلاتر المحددة.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

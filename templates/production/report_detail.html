@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}تقرير وردية {{ report.get_shift_display }} - {{ report.report_date }} | إدارة الإنتاج{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>تقرير الوردية ({{ report.get_shift_display }}) - {{ report.report_date }}</h1>
+    <p>مشرف الوردية: <strong>{{ report.supervisor.display_name }}</strong> ({{ report.supervisor.phone }})</p>
+  </div>
+  <div>
+    <a href="{% url 'production:reports' %}" class="btn ghost">{% icon "arrow_right" %} العودة للتقارير</a>
+  </div>
+</div>
+
+<div class="stat-row">
+  <article>
+    <span>إجمالي الإنتاج الفعلي</span>
+    <strong>{{ total_weight }} <small style="font-size:16px;">كجم</small></strong>
+    <small>{{ entries.count }} ماكينة مسجلة بالتقرير</small>
+  </article>
+  <article>
+    <span>حالة التسليم والاستلام</span>
+    <div style="margin-top:6px;">
+      {% if report.status == 'CONFIRMED' %}
+        <span class="badge success" style="font-size:14px; padding:6px 14px;">{% icon "check" %} تم التأكيد والاستلام</span>
+        <small style="display:block; margin-top:6px;">المستلم: {{ report.handover_to_supervisor.display_name }} ({{ report.handover_confirmed_at|date:"Y-m-d h:i A" }})</small>
+      {% elif report.status == 'PENDING_HANDOVER' %}
+        <span class="badge warning" style="font-size:14px; padding:6px 14px;">{% icon "clock" %} بانتظار تأكيد الاستلام</span>
+        <small style="display:block; margin-top:6px;">بانتظار المشرف التالي</small>
+      {% else %}
+        <span class="badge muted" style="font-size:14px; padding:6px 14px;">مسودة</span>
+      {% endif %}
+    </div>
+  </article>
+  <article>
+    <span>تغييرات التشغيل والأعطال</span>
+    <strong style="font-size:20px; margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+      {% if product_changes_count > 0 %}
+        <span class="badge-changed" style="font-size:12px;">{% icon "stoppage" %} {{ product_changes_count }} تغيير منتج</span>
+      {% else %}
+        <span class="badge success" style="font-size:12px;">{% icon "check" %} المنتجات مطابقة</span>
+      {% endif %}
+
+      {% if operator_changes_count > 0 %}
+        <span class="badge-changed" style="font-size:12px;">{% icon "stoppage" %} {{ operator_changes_count }} تغيير عامل</span>
+      {% else %}
+        <span class="badge success" style="font-size:12px;">{% icon "check" %} العمال مطابقون</span>
+      {% endif %}
+
+      {% if stoppages.count > 0 %}
+        <span class="badge warning" style="font-size:12px;">{% icon "stoppage" %} {{ stoppages.count }} توقف ({{ total_stoppage_mins }} د)</span>
+      {% else %}
+        <span class="badge success" style="font-size:12px;">{% icon "check" %} 0 توقف</span>
+      {% endif %}
+    </strong>
+    <small>تتبع التغييرات التي قام بها المشرف (يدوي أو من القائمة) مقارنة بإعدادات الداشبورد</small>
+  </article>
+</div>
+
+{% if report.status == 'PENDING_HANDOVER' %}
+<div class="panel" style="border:2px solid #f39c12; background:#fffcf2; padding:20px;">
+  <h3 style="margin-top:0; color:#b7791f; display:flex; align-items:center; gap:8px;">
+    {% icon "handshake" %} تأكيد استلام الوردية
+  </h3>
+  <p style="margin:0 0 14px; color:#6b522b;">
+    بصفتك المشرف المستلم للوردية، يرجى مراجعة بيانات الماكينات وحالاتها أدناه، ثم الضغط على زر التأكيد لاعتماد الاستلام رسمياً.
+  </p>
+  <form method="post" action="{% url 'production:confirm-handover' report.id %}" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="text" name="handover_notes" placeholder="ملاحظات الاستلام (اختياري)..." style="flex:1; min-width:280px;">
+    <button type="submit" class="btn primary" style="background:#27ae60;">{% icon "check" %} تأكيد استلام الوردية</button>
+  </form>
+</div>
+{% endif %}
+
+{% if report.handover_notes %}
+<div class="panel" style="background:#f4fbf7; border:1px solid #b7e4c7;">
+  <h4 style="margin:0 0 6px; color:#1b4332;">ملاحظات استلام الوردية:</h4>
+  <p style="margin:0; color:#2d6a4f;">{{ report.handover_notes }}</p>
+</div>
+{% endif %}
+
+{% if report.general_notes %}
+<div class="panel">
+  <h4 style="margin:0 0 6px;">ملاحظات عامة من مشرف الوردية:</h4>
+  <p style="margin:0; color:var(--muted);">{{ report.general_notes }}</p>
+</div>
+{% endif %}
+
+<!-- Machine Entries -->
+<div class="panel">
+  <div class="panel-title">
+    <h2>بيانات تشغيل وإنتاج الماكينات ({{ entries.count }})</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>الماكينة</th>
+          <th>القائم على الماكينة</th>
+          <th>المنتج</th>
+          <th>عدد اللقم (أصلي / حالي)</th>
+          <th>التشغيل</th>
+          <th>التبريد / الدورة</th>
+          <th>الخامة</th>
+          <th>الوزن النهائي (كجم)</th>
+          <th>المستهدف</th>
+          <th>العبوة</th>
+          <th>ملاحظات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <td>
+            <strong>{{ entry.asset.asset_code }}</strong>
+            <small style="display:block; color:var(--muted);">{{ entry.asset.production_title }}</small>
+          </td>
+          <td>
+            {% if entry.operator_changed %}
+              <div class="badge-changed-card" title="تم تغيير القائم على الماكينة عن المعتاد">
+                <div class="badge-changed-header">
+                  {% icon "stoppage" %} <span>تم تغيير العامل!</span>
+                </div>
+                <div class="badge-changed-body">
+                  <span class="changed-from">كانت القيمة: <del>{{ entry.original_operator_name|default:"-" }}</del></span>
+                  <span class="changed-to">وتم تغييرها إلى: <strong>{{ entry.display_operator }}</strong></span>
+                </div>
+              </div>
+            {% else %}
+              <strong>{{ entry.display_operator }}</strong>
+            {% endif %}
+          </td>
+          <td>
+            {% if entry.product_changed %}
+              <div class="badge-changed-card" title="تم تغيير المنتج عن المعتاد بالماكينة">
+                <div class="badge-changed-header">
+                  {% icon "stoppage" %} <span>تم تغيير المنتج!</span>
+                </div>
+                <div class="badge-changed-body">
+                  <span class="changed-from">كانت القيمة: <del>{{ entry.original_product_name|default:"-" }}</del></span>
+                  <span class="changed-to">وتم تغييرها إلى: <strong>{{ entry.display_product }}</strong></span>
+                </div>
+              </div>
+            {% else %}
+              <strong>{{ entry.display_product }}</strong>
+            {% endif %}
+          </td>
+          <td>
+            <span title="اللقم الأصلي من الداشبورد" style="color:var(--muted);">{{ entry.original_cavities }}</span>
+            <span style="margin: 0 4px;">/</span>
+            <strong title="اللقم الحالي مدخل يدوي" style="color:var(--primary); font-size:15px;">{{ entry.current_cavities }}</strong>
+          </td>
+          <td>
+            {% if entry.operation_mode == 'AUTO' %}
+              <span class="badge-auto">أوتو</span>
+            {% else %}
+              <span class="badge-manual">يدوي</span>
+            {% endif %}
+          </td>
+          <td>
+            <span title="التبريد بالثواني">{{ entry.cooling_time_seconds }} ث</span>
+            <span style="margin: 0 4px;">|</span>
+            <strong title="الدورة بالثواني">{{ entry.cycle_time_seconds }} ث</strong>
+          </td>
+          <td>{{ entry.raw_material|default:"-" }}</td>
+          <td>
+            <strong style="font-size:15px; color:var(--success);">{{ entry.final_production_weight_kg }} كجم</strong>
+          </td>
+          <td>{{ entry.target_cycle_production|default:"-" }}</td>
+          <td>{{ entry.packaging_type|default:"-" }}</td>
+          <td style="max-width:180px; white-space:normal; font-size:12px; color:var(--muted);">
+            {{ entry.notes|default:"-" }}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="11" class="text-center" style="padding:24px; color:var(--muted);">
+            لم يتم تسجيل بيانات ماكينات في هذا التقرير.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Stoppages -->
+<div class="panel">
+  <div class="panel-title">
+    <h2>الأعطال والتوقفات المسجلة بالوردية ({{ stoppages.count }})</h2>
+  </div>
+  {% if stoppages %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>النوع / الماكينة</th>
+          <th>تصنيف التوقف</th>
+          <th>الوصف</th>
+          <th>المدة</th>
+          <th>الإجراء المتخذ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for st in stoppages %}
+        <tr>
+          <td>
+            {% if st.asset %}
+              <strong>{{ st.asset.production_title }}</strong>
+            {% else %}
+              <span class="badge warning" style="font-size:12px;">عام لكافة الماكينات</span>
+            {% endif %}
+          </td>
+          <td><b>{{ st.get_stoppage_type_display }}</b></td>
+          <td style="white-space:normal; max-width:280px;">{{ st.description|default:"-" }}</td>
+          <td><strong style="color:var(--error);">{{ st.duration_minutes }} دقيقة</strong></td>
+          <td style="white-space:normal; max-width:280px;">{{ st.action_taken|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:24px; text-align:center; color:var(--success); font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px;">
+    {% icon "check_circle" %} لا توجد أعطال أو توقفات مسجلة في هذه الوردية. الوردية عملت بانتظام تام!
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
