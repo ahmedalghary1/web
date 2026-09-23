@@ -33,12 +33,21 @@ class ProductionBootstrapView(APIView):
         if not getattr(user, "can_access_production", True):
             return Response({"detail": "ليس لديك صلاحية الوصول إلى نظام الإنتاج والأعطال."}, status=status.HTTP_403_FORBIDDEN)
 
+        is_admin = getattr(user, "is_admin", user.is_superuser or user.role == "ADMIN")
+        all_active_factories = list(Factory.objects.filter(is_active=True).order_by("id"))
+
         factory = user.factory
-        if not factory and getattr(user, "is_admin", False):
-            factory = Factory.objects.filter(is_active=True).first()
+        requested_factory_id = request.GET.get("factory")
+        if requested_factory_id:
+            matched = next((f for f in all_active_factories if str(f.id) == str(requested_factory_id)), None)
+            if matched:
+                factory = matched
 
         if not factory:
-            return Response({"detail": "المستخدم غير مربوط بمصنع."}, status=status.HTTP_400_BAD_REQUEST)
+            factory = all_active_factories[0] if all_active_factories else None
+
+        if not factory:
+            return Response({"detail": "لا يوجد مصنع نشط بالنظام."}, status=status.HTTP_400_BAD_REQUEST)
 
         today = timezone.localdate()
 
@@ -65,6 +74,11 @@ class ProductionBootstrapView(APIView):
             report_date=today
         ).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").order_by("-created_at")
 
+        factories_list = [
+            {"id": f.id, "name": f.name, "code": f.code}
+            for f in all_active_factories
+        ]
+
         payload = {
             "server_date": str(today),
             "timezone": "Africa/Cairo",
@@ -73,6 +87,7 @@ class ProductionBootstrapView(APIView):
                 "name": factory.name,
                 "code": factory.code,
             },
+            "factories": factories_list,
             "user": {
                 "id": user.id,
                 "phone": user.phone,

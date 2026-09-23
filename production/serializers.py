@@ -22,8 +22,9 @@ class MachineOperatorSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "phone", "is_active"]
 
 class MachineProductionDefaultSerializer(serializers.ModelSerializer):
-    default_product_name = serializers.CharField(source="default_product.name", read_only=True, default="")
-    default_operator_name = serializers.CharField(source="default_operator.name", read_only=True, default="")
+    default_product_name = serializers.SerializerMethodField()
+    default_operator_name = serializers.SerializerMethodField()
+
     class Meta:
         model = MachineProductionDefault
         fields = [
@@ -37,11 +38,17 @@ class MachineProductionDefaultSerializer(serializers.ModelSerializer):
             "target_cycle_production",
         ]
 
+    def get_default_product_name(self, obj):
+        return obj.default_product.name if obj.default_product else ""
+
+    def get_default_operator_name(self, obj):
+        return obj.default_operator.name if obj.default_operator else ""
+
 class ProductionAssetSerializer(serializers.ModelSerializer):
     asset_type_display = serializers.CharField(source="get_asset_type_display", read_only=True)
     production_title = serializers.CharField(read_only=True)
     maintenance_title = serializers.CharField(source="production_title", read_only=True)
-    production_default = MachineProductionDefaultSerializer(read_only=True)
+    production_default = serializers.SerializerMethodField()
 
     class Meta:
         model = Asset
@@ -56,6 +63,15 @@ class ProductionAssetSerializer(serializers.ModelSerializer):
             "maintenance_title",
             "production_default",
         ]
+
+    def get_production_default(self, obj):
+        try:
+            default_obj = getattr(obj, "production_default", None)
+            if default_obj:
+                return MachineProductionDefaultSerializer(default_obj).data
+        except Exception:
+            pass
+        return None
 
 class MachineProductionEntrySerializer(serializers.ModelSerializer):
     asset_code = serializers.CharField(source="asset.asset_code", read_only=True)
