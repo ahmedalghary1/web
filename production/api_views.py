@@ -155,7 +155,7 @@ class ProductionSyncReportView(APIView):
             # Re-create entries
             entries_to_create = []
             for item in data.get("entries", []):
-                asset = Asset.objects.filter(id=item["asset_id"], factory=user.factory).first()
+                asset = Asset.objects.filter(id=item["asset_id"], factory=report.factory).first()
                 if not asset:
                     continue
 
@@ -202,6 +202,10 @@ class ProductionSyncReportView(APIView):
                 if op_changed and not orig_op_name:
                     orig_op_name = default_op_name or "الافتراضي غير محدد"
 
+                actual_cooling = item.get("cooling_time_seconds")
+                actual_cycle = item.get("cycle_time_seconds")
+                actual_target = item.get("target_cycle_production")
+
                 entries_to_create.append(MachineProductionEntry(
                     report=report,
                     asset=asset,
@@ -218,11 +222,11 @@ class ProductionSyncReportView(APIView):
                     original_cavities=default_cfg.original_cavities if default_cfg else item.get("original_cavities", 1),
                     current_cavities=item.get("current_cavities", 1),
                     operation_mode=item.get("operation_mode", "AUTO"),
-                    cooling_time_seconds=default_cfg.cooling_time_seconds if default_cfg else item.get("cooling_time_seconds", 0.0),
-                    cycle_time_seconds=default_cfg.cycle_time_seconds if default_cfg else item.get("cycle_time_seconds", 0.0),
+                    cooling_time_seconds=actual_cooling if (actual_cooling is not None and actual_cooling > 0) else (default_cfg.cooling_time_seconds if default_cfg else 0.0),
+                    cycle_time_seconds=actual_cycle if (actual_cycle is not None and actual_cycle > 0) else (default_cfg.cycle_time_seconds if default_cfg else 0.0),
                     raw_material=item.get("raw_material", ""),
                     final_production_weight_kg=item.get("final_production_weight_kg", 0.0),
-                    target_cycle_production=default_cfg.target_cycle_production if default_cfg else item.get("target_cycle_production", 0.0),
+                    target_cycle_production=actual_target if (actual_target is not None and actual_target > 0) else (default_cfg.target_cycle_production if default_cfg else 0.0),
                     packaging_type=item.get("packaging_type", ""),
                     notes=item.get("notes", ""),
                 ))
@@ -234,7 +238,7 @@ class ProductionSyncReportView(APIView):
             stoppages_to_create = []
             for stop in data.get("stoppages", []):
                 asset_id = stop.get("asset_id")
-                asset = Asset.objects.filter(id=asset_id, factory=user.factory).first() if asset_id else None
+                asset = Asset.objects.filter(id=asset_id, factory=report.factory).first() if asset_id else None
                 stoppages_to_create.append(ProductionStoppage(
                     report=report,
                     asset=asset,
