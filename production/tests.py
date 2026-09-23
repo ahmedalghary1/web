@@ -454,6 +454,58 @@ class ProductionAPITestCase(TestCase):
         res_bootstrap2 = self.client.get(reverse("production-api:bootstrap"))
         self.assertIsNone(res_bootstrap2.data["pending_handover"])
 
+    def test_empty_sync_never_wipes_recorded_machine_entries(self):
+        client_rep_id = str(uuid.uuid4())
+        today_str = str(timezone.localdate())
+
+        self.client.force_authenticate(user=self.supervisor1)
+        
+        # 1. First sync sends 1 recorded machine entry
+        initial_sync = {
+            "client_report_id": client_rep_id,
+            "shift": "FIRST",
+            "report_date": today_str,
+            "status": "PENDING_HANDOVER",
+            "general_notes": "تسجيل ماكينة تجريبية",
+            "entries": [
+                {
+                    "asset_id": self.asset1.id,
+                    "product_id": self.prod_default.id,
+                    "original_cavities": 4,
+                    "current_cavities": 4,
+                    "final_production_weight_kg": 320.5,
+                }
+            ],
+            "stoppages": []
+        }
+        res1 = self.client.post(reverse("production-api:sync-shift-reports"), initial_sync, format="json")
+        self.assertEqual(res1.status_code, 200)
+
+        rep = ProductionShiftReport.objects.get(client_report_id=client_rep_id)
+        self.assertEqual(rep.machine_entries.count(), 1)
+        entry = rep.machine_entries.first()
+        self.assertEqual(entry.asset, self.asset1)
+        self.assertEqual(entry.final_production_weight_kg, 320.5)
+
+        # 2. Subsequent sync sent with empty entries list (e.g. status update or finish shift without entries)
+        finish_sync = {
+            "client_report_id": client_rep_id,
+            "shift": "FIRST",
+            "report_date": today_str,
+            "status": "PENDING_HANDOVER",
+            "general_notes": "تم إنهاء الوردية",
+            "entries": [],
+            "stoppages": []
+        }
+        res2 = self.client.post(reverse("production-api:sync-shift-reports"), finish_sync, format="json")
+        self.assertEqual(res2.status_code, 200)
+
+        # Machine entries MUST NOT be wiped!
+        rep.refresh_from_db()
+        self.assertEqual(rep.machine_entries.count(), 1, "Recorded machine entries must be preserved when sync entries is empty")
+        self.assertEqual(rep.general_notes, "تم إنهاء الوردية")
+
+
 
 
 
