@@ -72,6 +72,7 @@
           <th>تاريخ الوردية</th>
           <th>الوردية</th>
           <th>مشرف الوردية</th>
+          <th>المشرف المستلم المخصص</th>
           <th>إجمالي الوزن</th>
           <th>توقيت الإرسال</th>
           <th>الإجراء</th>
@@ -79,10 +80,22 @@
       </thead>
       <tbody>
         {% for rep in pending_handovers %}
-        <tr>
+        <tr {% if rep.handover_to_supervisor == request.user or request.user.shift and rep.shift == request.user.previous_shift %}style="background: #fff8e1;"{% endif %}>
           <td><strong>{{ rep.report_date }}</strong></td>
-          <td><span class="badge warning">{{ rep.get_shift_display }}</span></td>
+          <td>
+            <span class="badge warning">{{ rep.get_shift_display }}</span>
+            {% if rep.handover_to_supervisor == request.user or request.user.shift and rep.shift == request.user.previous_shift %}
+              <span class="badge success" style="font-size:11px; margin-right:4px;">مخصصة لاستلامك</span>
+            {% endif %}
+          </td>
           <td>{{ rep.supervisor.display_name }}</td>
+          <td>
+            {% if rep.handover_to_supervisor %}
+              <strong>{{ rep.handover_to_supervisor.display_name }}</strong>
+            {% else %}
+              <span class="badge muted">مشرف الوردية القادمة</span>
+            {% endif %}
+          </td>
           <td><strong>{{ rep.total_weight }} كجم</strong></td>
           <td>{{ rep.created_at|date:"h:i A" }}</td>
           <td>

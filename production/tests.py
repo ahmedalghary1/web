@@ -349,5 +349,111 @@ class ProductionAPITestCase(TestCase):
         self.assertIn("تم تحديث إعدادات الإنتاج لماكينة M-01 بنجاح.", post_content)
         self.assertIn("M-01", post_content)
 
+    def test_three_shifts_automatic_handover_logic(self):
+        # 1. Create 3 supervisors assigned to the 3 shifts in factory 1
+        sup1 = User.objects.create_user(
+            phone="01011111111",
+            password="pass",
+            name="مشرف وردية 1",
+            role=User.Role.PRODUCTION_SUPERVISOR,
+            factory=self.factory,
+            shift=User.Shift.FIRST
+        )
+        sup2 = User.objects.create_user(
+            phone="01022222222",
+            password="pass",
+            name="مشرف وردية 2",
+            role=User.Role.PRODUCTION_SUPERVISOR,
+            factory=self.factory,
+            shift=User.Shift.SECOND
+        )
+        sup3 = User.objects.create_user(
+            phone="01033333333",
+            password="pass",
+            name="مشرف وردية 3",
+            role=User.Role.PRODUCTION_SUPERVISOR,
+            factory=self.factory,
+            shift=User.Shift.THIRD
+        )
+
+        # Check cyclic next/previous shifts
+        self.assertEqual(sup1.next_shift, "SECOND")
+        self.assertEqual(sup1.get_next_shift_supervisor(), sup2)
+        self.assertEqual(sup2.next_shift, "THIRD")
+        self.assertEqual(sup2.get_next_shift_supervisor(), sup3)
+        self.assertEqual(sup3.next_shift, "FIRST")
+        self.assertEqual(sup3.get_next_shift_supervisor(), sup1)
+
+        self.assertEqual(sup1.previous_shift, "THIRD")
+        self.assertEqual(sup2.previous_shift, "FIRST")
+        self.assertEqual(sup3.previous_shift, "SECOND")
+
+        # 2. Supervisor 1 finishes FIRST shift report
+        client_rep_id = str(uuid.uuid4())
+        today_str = str(timezone.localdate())
+
+        self.client.force_authenticate(user=sup1)
+        sync_payload = {
+            "client_report_id": client_rep_id,
+            "shift": "FIRST",
+            "report_date": today_str,
+            "status": "PENDING_HANDOVER",
+            "general_notes": "تم تسليم الوردية 1 بنجاح",
+            "entries": [
+                {
+                    "asset_id": self.asset1.id,
+                    "product_id": self.prod_default.id,
+                    "original_cavities": 4,
+                    "current_cavities": 4,
+                    "final_production_weight_kg": 250.0,
+                }
+            ],
+            "stoppages": []
+        }
+        res_sync = self.client.post(reverse("production-api:sync-shift-reports"), sync_payload, format="json")
+        self.assertEqual(res_sync.status_code, 200)
+
+        # Check report in DB: handover_to_supervisor should be automatically sup2!
+        rep = ProductionShiftReport.objects.get(client_report_id=client_rep_id)
+        self.assertEqual(rep.supervisor, sup1)
+        self.assertEqual(rep.handover_to_supervisor, sup2)
+        self.assertEqual(rep.status, ProductionShiftReport.Status.PENDING_HANDOVER)
+
+        # 3. Supervisor 2 logs in / opens app -> calls Bootstrap
+        self.client.force_authenticate(user=sup2)
+        res_bootstrap = self.client.get(reverse("production-api:bootstrap"))
+        self.assertEqual(res_bootstrap.status_code, 200)
+        data = res_bootstrap.data
+
+        # Bootstrap user info has shift and next supervisor (sup3)
+        self.assertEqual(data["user"]["shift"], "SECOND")
+        self.assertEqual(data["user"]["next_shift"], "THIRD")
+        self.assertEqual(data["user"]["next_shift_supervisor"]["id"], sup3.id)
+        self.assertEqual(data["user"]["next_shift_supervisor"]["name"], "مشرف وردية 3")
+
+        # Pending handover is automatically sup1's report!
+        self.assertIsNotNone(data["pending_handover"])
+        self.assertEqual(data["pending_handover"]["client_report_id"], client_rep_id)
+        self.assertEqual(data["pending_handover"]["shift"], "FIRST")
+
+        # 4. Supervisor 2 confirms handover
+        res_confirm = self.client.post(
+            reverse("production-api:confirm-handover"),
+            {"client_report_id": client_rep_id, "handover_notes": "تم استلام جميع الماكينات بحالة جيدة"},
+            format="json"
+        )
+        self.assertEqual(res_confirm.status_code, 200)
+
+        rep.refresh_from_db()
+        self.assertEqual(rep.status, ProductionShiftReport.Status.CONFIRMED)
+        self.assertEqual(rep.handover_to_supervisor, sup2)
+        self.assertIsNotNone(rep.handover_confirmed_at)
+        self.assertEqual(rep.handover_notes, "تم استلام جميع الماكينات بحالة جيدة")
+
+        # Calling bootstrap again for sup2 shows no pending handover
+        res_bootstrap2 = self.client.get(reverse("production-api:bootstrap"))
+        self.assertIsNone(res_bootstrap2.data["pending_handover"])
+
+
 
 

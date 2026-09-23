@@ -63,6 +63,12 @@
   <h3 style="margin-top:0; color:#b7791f; display:flex; align-items:center; gap:8px;">
     {% icon "handshake" %} تأكيد استلام الوردية
   </h3>
+  <p style="margin:0 0 8px; color:#6b522b; font-size:14px;">
+    وردية مسلَّمة بواسطة المشرف: <strong>{{ report.supervisor.display_name }}</strong>
+    {% if report.handover_to_supervisor %}
+      · المشرف المستلم المخصص: <strong>{{ report.handover_to_supervisor.display_name }}</strong>
+    {% endif %}
+  </p>
   <p style="margin:0 0 14px; color:#6b522b;">
     بصفتك المشرف المستلم للوردية، يرجى مراجعة بيانات الماكينات وحالاتها أدناه، ثم الضغط على زر التأكيد لاعتماد الاستلام رسمياً.
   </p>

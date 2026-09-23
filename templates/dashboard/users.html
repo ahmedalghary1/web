@@ -21,6 +21,7 @@
           <th>رقم الهاتف</th>
           <th>الدور والصلاحيات</th>
           <th>المصنع المخصص له</th>
+          <th>الوردية المخصصة</th>
           <th>الحالة</th>
           <th>آخر دخول</th>
           <th>الإجراءات</th>
@@ -56,6 +57,13 @@
               <span style="color:var(--secondary); font-weight:bold; display:inline-flex; align-items:center; gap:4px;">{% icon "globe" %} كافة المصانع (مسؤول عام)</span>
             {% else %}
               <span style="color:var(--error); display:inline-flex; align-items:center; gap:4px;">{% icon "stoppage" %} غير مخصص لمصنع</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.shift %}
+              <span class="badge" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;">{{ u.get_shift_display }}</span>
+            {% else %}
+              <span class="badge muted">غير محدد</span>
             {% endif %}
           </td>
           <td>

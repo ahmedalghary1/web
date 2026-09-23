@@ -8,6 +8,7 @@ from drf_spectacular.utils import extend_schema
 
 from assets.models import Asset
 from factories.models import Factory
+from accounts.models import User
 from .models import (
     Product,
     MachineOperator,
@@ -62,13 +63,44 @@ class ProductionBootstrapView(APIView):
         # 3. Operators
         operators = MachineOperator.objects.filter(factory=factory, is_active=True).order_by("name")
 
-        # 4. Latest pending handover report (shift awaiting confirmation from next supervisor)
-        pending_handover = ProductionShiftReport.objects.filter(
-            factory=factory,
-            status=ProductionShiftReport.Status.PENDING_HANDOVER
-        ).exclude(supervisor=user).select_related("supervisor").prefetch_related("machine_entries", "stoppages").first()
+        # 4. Resolve shift info and next supervisor for current user
+        user_shift = getattr(user, "shift", None)
+        next_shift = None
+        next_shift_display = None
+        next_supervisor = None
 
-        # 5. Today's reports
+        if user_shift:
+            next_shift = user.next_shift
+            next_shift_display = user.Shift(next_shift).label if next_shift else None
+            next_supervisor = user.get_next_shift_supervisor()
+
+        # 5. Pending handover report targeted to this incoming supervisor:
+        pending_handover = None
+        if user_shift:
+            prev_shift = user.previous_shift
+            # Priority 1: Reports from the previous shift of this factory awaiting handover
+            pending_handover = ProductionShiftReport.objects.filter(
+                factory=factory,
+                status=ProductionShiftReport.Status.PENDING_HANDOVER,
+                shift=prev_shift
+            ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
+
+            if not pending_handover:
+                # Priority 2: Directly assigned to this user
+                pending_handover = ProductionShiftReport.objects.filter(
+                    factory=factory,
+                    status=ProductionShiftReport.Status.PENDING_HANDOVER,
+                    handover_to_supervisor=user
+                ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
+
+        if not pending_handover:
+            # Fallback for admin or general supervisors without a fixed shift
+            pending_handover = ProductionShiftReport.objects.filter(
+                factory=factory,
+                status=ProductionShiftReport.Status.PENDING_HANDOVER
+            ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
+
+        # 6. Today's reports
         today_reports = ProductionShiftReport.objects.filter(
             factory=factory,
             report_date=today
@@ -93,6 +125,15 @@ class ProductionBootstrapView(APIView):
                 "phone": user.phone,
                 "name": user.display_name,
                 "role": user.role,
+                "shift": user_shift,
+                "shift_display": user.get_shift_display() if user_shift else None,
+                "next_shift": next_shift,
+                "next_shift_display": next_shift_display,
+                "next_shift_supervisor": {
+                    "id": next_supervisor.id,
+                    "name": next_supervisor.display_name,
+                    "phone": next_supervisor.phone,
+                } if next_supervisor else None,
             },
             "assets": ProductionAssetSerializer(assets, many=True).data,
             "products": ProductSerializer(products, many=True).data,
@@ -124,16 +165,33 @@ class ProductionSyncReportView(APIView):
         data = serializer.validated_data
 
         with transaction.atomic():
+            report_shift = data.get("shift", "FIRST")
+            report_status = data.get("status", "PENDING_HANDOVER")
+
+            target_handover_supervisor = None
+            if report_status == ProductionShiftReport.Status.PENDING_HANDOVER:
+                cycle_next = {
+                    "FIRST": "SECOND",
+                    "SECOND": "THIRD",
+                    "THIRD": "FIRST",
+                }.get(report_shift, "SECOND")
+                target_handover_supervisor = User.objects.filter(
+                    factory=factory,
+                    shift=cycle_next,
+                    is_active=True
+                ).first()
+
             report, created = ProductionShiftReport.objects.get_or_create(
                 client_report_id=data["client_report_id"],
                 defaults={
                     "factory": factory,
                     "supervisor": user,
-                    "shift": data.get("shift", "FIRST"),
+                    "shift": report_shift,
                     "report_date": data["report_date"],
                     "started_at_device": data.get("started_at_device"),
                     "completed_at_device": data.get("completed_at_device"),
-                    "status": data.get("status", "PENDING_HANDOVER"),
+                    "status": report_status,
+                    "handover_to_supervisor": target_handover_supervisor,
                     "general_notes": data.get("general_notes", ""),
                 }
             )
@@ -146,6 +204,8 @@ class ProductionSyncReportView(APIView):
                 report.completed_at_device = data.get("completed_at_device", report.completed_at_device)
                 report.status = data.get("status", report.status)
                 report.general_notes = data.get("general_notes", report.general_notes)
+                if not report.handover_to_supervisor and target_handover_supervisor:
+                    report.handover_to_supervisor = target_handover_supervisor
                 report.save()
 
             # Clear old entries & stoppages for idempotency

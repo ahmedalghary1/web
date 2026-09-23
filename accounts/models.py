@@ -16,13 +16,58 @@ class User(AbstractBaseUser, PermissionsMixin):
         MAINTENANCE_SUPERVISOR = "MAINTENANCE_SUPERVISOR", "🛠️ مشرف صيانة دورية (صلاحيات الصيانة لمصنعه فقط)"
         PRODUCTION_SUPERVISOR = "PRODUCTION_SUPERVISOR", "🏭 مشرف إنتاج وأعطال (صلاحيات الإنتاج والأعطال لمصنعه فقط)"
         GENERAL_SUPERVISOR = "GENERAL_SUPERVISOR", "⚡ مشرف عام للمصنع (صيانة وإنتاج لمصنعه فقط)"
+
+    class Shift(models.TextChoices):
+        FIRST = "FIRST", "الوردية الأولى (صباحية)"
+        SECOND = "SECOND", "الوردية الثانية (مسائية)"
+        THIRD = "THIRD", "الوردية الثالثة (ليلية)"
+
     phone = models.CharField("رقم الهاتف", max_length=30, unique=True, db_index=True)
     name = models.CharField("اسم المستخدم", max_length=150, blank=True, default="")
     role = models.CharField("الدور والصلاحيات", max_length=32, choices=Role.choices, default=Role.MAINTENANCE_SUPERVISOR)
     factory = models.ForeignKey("factories.Factory", verbose_name="المصنع", null=True, blank=True, on_delete=models.PROTECT, related_name="users")
+    shift = models.CharField(
+        "الوردية المسندة",
+        max_length=20,
+        choices=Shift.choices,
+        null=True,
+        blank=True,
+        help_text="حدد الوردية المخصصة للمشرف في المصنع ليظهر له تقرير الوردية السابقة للتأكيد تلقائياً."
+    )
     is_active = models.BooleanField(default=True); is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
     objects = UserManager(); USERNAME_FIELD = "phone"; REQUIRED_FIELDS = []
+
+    @property
+    def next_shift(self):
+        if not self.shift:
+            return None
+        cycle = {
+            self.Shift.FIRST: self.Shift.SECOND,
+            self.Shift.SECOND: self.Shift.THIRD,
+            self.Shift.THIRD: self.Shift.FIRST,
+        }
+        return cycle.get(self.shift)
+
+    @property
+    def previous_shift(self):
+        if not self.shift:
+            return None
+        cycle = {
+            self.Shift.FIRST: self.Shift.THIRD,
+            self.Shift.SECOND: self.Shift.FIRST,
+            self.Shift.THIRD: self.Shift.SECOND,
+        }
+        return cycle.get(self.shift)
+
+    def get_next_shift_supervisor(self):
+        if not self.factory or not self.next_shift:
+            return None
+        return User.objects.filter(
+            factory=self.factory,
+            shift=self.next_shift,
+            is_active=True
+        ).first()
 
     @property
     def display_name(self):
