@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Product,
     MachineOperator,
+    ProductionOption,
     MachineProductionDefault,
     ProductionShiftReport,
     MachineProductionEntry,
@@ -22,7 +23,7 @@ class MachineOperatorAdmin(admin.ModelAdmin):
 
 @admin.register(MachineProductionDefault)
 class MachineProductionDefaultAdmin(admin.ModelAdmin):
-    list_display = ["asset", "default_product", "default_operator", "original_cavities", "cooling_time_seconds", "cycle_time_seconds", "target_cycle_production"]
+    list_display = ["asset", "default_product", "default_operator", "default_raw_material", "default_final_unit", "original_cavities", "cooling_time_seconds", "cycle_time_seconds", "target_cycle_production", "target_cycle_unit", "default_packaging"]
     list_filter = ["asset__factory"]
     search_fields = ["asset__asset_code"]
 
@@ -48,3 +49,10 @@ class ProductionStoppageAdmin(admin.ModelAdmin):
     list_display = ["report", "asset", "stoppage_type", "duration_minutes", "created_at"]
     list_filter = ["stoppage_type", "report__factory"]
     search_fields = ["description", "action_taken"]
+
+
+@admin.register(ProductionOption)
+class ProductionOptionAdmin(admin.ModelAdmin):
+    list_display = ["name", "factory", "category", "kg_per_unit", "is_active"]
+    list_filter = ["factory", "category", "is_active"]
+    search_fields = ["name"]

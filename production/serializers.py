@@ -5,6 +5,7 @@ from accounts.models import User
 from .models import (
     Product,
     MachineOperator,
+    ProductionOption,
     MachineProductionDefault,
     ProductionShiftReport,
     MachineProductionEntry,
@@ -21,9 +22,19 @@ class MachineOperatorSerializer(serializers.ModelSerializer):
         model = MachineOperator
         fields = ["id", "name", "phone", "is_active"]
 
+
+class ProductionOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductionOption
+        fields = ["id", "category", "name", "kg_per_unit"]
+
 class MachineProductionDefaultSerializer(serializers.ModelSerializer):
     default_product_name = serializers.SerializerMethodField()
     default_operator_name = serializers.SerializerMethodField()
+    default_raw_material_name = serializers.SerializerMethodField()
+    default_final_unit_name = serializers.SerializerMethodField()
+    target_cycle_unit_name = serializers.SerializerMethodField()
+    default_packaging_name = serializers.SerializerMethodField()
 
     class Meta:
         model = MachineProductionDefault
@@ -32,6 +43,14 @@ class MachineProductionDefaultSerializer(serializers.ModelSerializer):
             "default_product_name",
             "default_operator",
             "default_operator_name",
+            "default_raw_material",
+            "default_raw_material_name",
+            "default_final_unit",
+            "default_final_unit_name",
+            "target_cycle_unit",
+            "target_cycle_unit_name",
+            "default_packaging",
+            "default_packaging_name",
             "original_cavities",
             "cooling_time_seconds",
             "cycle_time_seconds",
@@ -43,6 +62,18 @@ class MachineProductionDefaultSerializer(serializers.ModelSerializer):
 
     def get_default_operator_name(self, obj):
         return obj.default_operator.name if obj.default_operator else ""
+
+    def get_default_raw_material_name(self, obj):
+        return obj.default_raw_material.name if obj.default_raw_material else ""
+
+    def get_default_final_unit_name(self, obj):
+        return obj.default_final_unit.name if obj.default_final_unit else ""
+
+    def get_target_cycle_unit_name(self, obj):
+        return obj.target_cycle_unit.name if obj.target_cycle_unit else ""
+
+    def get_default_packaging_name(self, obj):
+        return obj.default_packaging.name if obj.default_packaging else ""
 
 class ProductionAssetSerializer(serializers.ModelSerializer):
     asset_type_display = serializers.CharField(source="get_asset_type_display", read_only=True)
@@ -103,7 +134,11 @@ class MachineProductionEntrySerializer(serializers.ModelSerializer):
             "cycle_time_seconds",
             "raw_material",
             "final_production_weight_kg",
+            "final_production_quantity",
+            "final_production_unit",
+            "final_production_unit_name",
             "target_cycle_production",
+            "target_cycle_unit_name",
             "packaging_type",
             "notes",
         ]
@@ -176,12 +211,16 @@ class SyncMachineEntryInputSerializer(serializers.Serializer):
     original_product_name = serializers.CharField(required=False, allow_blank=True, default="")
     product_changed = serializers.BooleanField(default=False)
     original_cavities = serializers.IntegerField(default=1)
-    current_cavities = serializers.IntegerField(default=1)
+    current_cavities = serializers.IntegerField(default=1, min_value=1)
     operation_mode = serializers.ChoiceField(choices=["AUTO", "MANUAL"], default="AUTO")
     cooling_time_seconds = serializers.FloatField(default=0.0)
     cycle_time_seconds = serializers.FloatField(default=0.0)
     raw_material = serializers.CharField(required=False, allow_blank=True, default="")
     final_production_weight_kg = serializers.FloatField(default=0.0)
+    final_production_quantity = serializers.FloatField(required=False, allow_null=True, min_value=0)
+    final_production_unit_id = serializers.IntegerField(required=False, allow_null=True)
+    raw_material_option_id = serializers.IntegerField(required=False, allow_null=True)
+    packaging_option_id = serializers.IntegerField(required=False, allow_null=True)
     target_cycle_production = serializers.FloatField(default=0.0)
     packaging_type = serializers.CharField(required=False, allow_blank=True, default="")
     notes = serializers.CharField(required=False, allow_blank=True, default="")

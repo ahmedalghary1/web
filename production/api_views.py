@@ -1,4 +1,4 @@
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -12,6 +12,7 @@ from accounts.models import User
 from .models import (
     Product,
     MachineOperator,
+    ProductionOption,
     MachineProductionDefault,
     ProductionShiftReport,
     MachineProductionEntry,
@@ -20,6 +21,7 @@ from .models import (
 from .serializers import (
     ProductSerializer,
     MachineOperatorSerializer,
+    ProductionOptionSerializer,
     ProductionAssetSerializer,
     ProductionShiftReportSerializer,
     SyncShiftReportInputSerializer,
@@ -38,7 +40,7 @@ class ProductionBootstrapView(APIView):
         all_active_factories = list(Factory.objects.filter(is_active=True).order_by("id"))
 
         factory = user.factory
-        requested_factory_id = request.GET.get("factory")
+        requested_factory_id = request.GET.get("factory") if is_admin else None
         if requested_factory_id:
             matched = next((f for f in all_active_factories if str(f.id) == str(requested_factory_id)), None)
             if matched:
@@ -55,7 +57,11 @@ class ProductionBootstrapView(APIView):
         # 1. Assets with production defaults
         assets = Asset.objects.filter(
             factory=factory, is_active=True, is_archived=False
-        ).select_related("production_default", "production_default__default_product", "production_default__default_operator").order_by("sequence_order", "id")
+        ).select_related(
+            "production_default", "production_default__default_product", "production_default__default_operator",
+            "production_default__default_raw_material", "production_default__default_final_unit",
+            "production_default__target_cycle_unit", "production_default__default_packaging",
+        ).order_by("sequence_order", "id")
 
         # 2. Products
         products = Product.objects.filter(factory=factory, is_active=True).order_by("name")
@@ -138,6 +144,9 @@ class ProductionBootstrapView(APIView):
             "assets": ProductionAssetSerializer(assets, many=True).data,
             "products": ProductSerializer(products, many=True).data,
             "operators": MachineOperatorSerializer(operators, many=True).data,
+            "production_options": ProductionOptionSerializer(
+                ProductionOption.objects.filter(factory=factory, is_active=True).order_by("category", "name"), many=True
+            ).data,
             "pending_handover": ProductionShiftReportSerializer(pending_handover).data if pending_handover else None,
             "today_reports": ProductionShiftReportSerializer(today_reports, many=True).data,
         }
@@ -226,15 +235,27 @@ class ProductionSyncReportView(APIView):
                 report.machine_entries.all().delete()
                 entries_to_create = []
                 for item in incoming_entries:
-                    asset = Asset.objects.filter(id=item["asset_id"]).first()
+                    asset = Asset.objects.filter(id=item["asset_id"], factory=factory).first()
                     if not asset:
-                        continue
-                    if report.factory_id != asset.factory_id:
-                        report.factory = asset.factory
-                        report.save(update_fields=["factory"])
+                        raise serializers.ValidationError({"asset_id": "الماكينة غير موجودة في المصنع المحدد."})
+
+                    def selected_option(option_key, expected_category, default=None):
+                        option_id = item.get(option_key)
+                        if option_id is None:
+                            return default
+                        option = ProductionOption.objects.filter(
+                            pk=option_id, factory=factory, category=expected_category, is_active=True
+                        ).first()
+                        if option is None:
+                            raise serializers.ValidationError({option_key: "الاختيار غير نشط أو لا يتبع المصنع."})
+                        return option
 
                     # Detect if product was changed from default
                     default_cfg = getattr(asset, "production_default", None)
+                    if item.get("product_id") is not None and not Product.objects.filter(pk=item["product_id"], factory=factory, is_active=True).exists():
+                        raise serializers.ValidationError({"product_id": "المنتج غير نشط أو لا يتبع المصنع."})
+                    if item.get("operator_id") is not None and not MachineOperator.objects.filter(pk=item["operator_id"], factory=factory, is_active=True).exists():
+                        raise serializers.ValidationError({"operator_id": "العامل غير نشط أو لا يتبع المصنع."})
                     default_prod_id = default_cfg.default_product_id if default_cfg else None
                     default_prod_name = default_cfg.default_product.name if (default_cfg and default_cfg.default_product) else ""
                     
@@ -245,7 +266,7 @@ class ProductionSyncReportView(APIView):
                     orig_prod_id = item.get("original_product_id") or default_prod_id
                     orig_prod_name = item.get("original_product_name") or default_prod_name
 
-                    if selected_prod_id and default_prod_id and selected_prod_id != default_prod_id:
+                    if "product_id" in item and selected_prod_id != default_prod_id:
                         prod_changed = True
                     elif selected_prod_name and default_prod_name and selected_prod_name.strip() != default_prod_name.strip():
                         prod_changed = True
@@ -266,7 +287,7 @@ class ProductionSyncReportView(APIView):
                     orig_op_id = item.get("original_operator_id") or default_op_id
                     orig_op_name = item.get("original_operator_name") or default_op_name
 
-                    if selected_op_id and default_op_id and selected_op_id != default_op_id:
+                    if "operator_id" in item and selected_op_id != default_op_id:
                         op_changed = True
                     elif selected_op_name and default_op_name and selected_op_name.strip() != default_op_name.strip():
                         op_changed = True
@@ -279,6 +300,41 @@ class ProductionSyncReportView(APIView):
                     actual_cooling = item.get("cooling_time_seconds")
                     actual_cycle = item.get("cycle_time_seconds")
                     actual_target = item.get("target_cycle_production")
+                    raw_material_option = selected_option(
+                        "raw_material_option_id", ProductionOption.Category.RAW_MATERIAL,
+                        default_cfg.default_raw_material if default_cfg else None,
+                    )
+                    final_unit = selected_option(
+                        "final_production_unit_id", ProductionOption.Category.FINAL_UNIT,
+                        default_cfg.default_final_unit if default_cfg else None,
+                    )
+                    packaging_option = selected_option(
+                        "packaging_option_id", ProductionOption.Category.PACKAGING,
+                        default_cfg.default_packaging if default_cfg else None,
+                    )
+                    entered_quantity = item.get("final_production_quantity")
+                    if entered_quantity is None:  # Backward-compatible with installed older APKs.
+                        entered_quantity = item.get("final_production_weight_kg", 0.0)
+                        unit_name = "كجم"
+                        final_weight_kg = entered_quantity
+                        final_unit = ProductionOption.objects.filter(
+                            factory=factory, category=ProductionOption.Category.FINAL_UNIT, name="كجم", is_active=True
+                        ).first()
+                    else:
+                        final_unit = selected_option(
+                            "final_production_unit_id", ProductionOption.Category.FINAL_UNIT,
+                            final_unit or ProductionOption.objects.filter(
+                                factory=factory, category=ProductionOption.Category.FINAL_UNIT, name="كجم", is_active=True
+                            ).first(),
+                        )
+                        if final_unit is None:
+                            raise serializers.ValidationError({"final_production_unit_id": "أضف وحدة إنتاج فعلي من إعدادات الإنتاج أولاً."})
+                        unit_name = final_unit.name
+                        final_weight_kg = entered_quantity * final_unit.kg_per_unit if final_unit.kg_per_unit is not None else 0.0
+                    raw_material_value = raw_material_option.name if raw_material_option else item.get("raw_material", "")
+                    packaging_value = packaging_option.name if packaging_option else item.get("packaging_type", "")
+                    fixed_target = default_cfg.target_cycle_production if default_cfg else 0.0
+                    fixed_cycle_unit = default_cfg.target_cycle_unit.name if default_cfg and default_cfg.target_cycle_unit else ""
 
                     entries_to_create.append(MachineProductionEntry(
                         report=report,
@@ -293,15 +349,19 @@ class ProductionSyncReportView(APIView):
                         original_product_id=orig_prod_id if prod_changed else None,
                         original_product_name=orig_prod_name if prod_changed else "",
                         product_changed=prod_changed,
-                        original_cavities=default_cfg.original_cavities if default_cfg else item.get("original_cavities", 1),
+                        original_cavities=default_cfg.original_cavities if default_cfg else 1,
                         current_cavities=item.get("current_cavities", 1),
                         operation_mode=item.get("operation_mode", "AUTO"),
                         cooling_time_seconds=actual_cooling if (actual_cooling is not None and actual_cooling > 0) else (default_cfg.cooling_time_seconds if default_cfg else 0.0),
                         cycle_time_seconds=actual_cycle if (actual_cycle is not None and actual_cycle > 0) else (default_cfg.cycle_time_seconds if default_cfg else 0.0),
-                        raw_material=item.get("raw_material", ""),
-                        final_production_weight_kg=item.get("final_production_weight_kg", 0.0),
-                        target_cycle_production=actual_target if (actual_target is not None and actual_target > 0) else (default_cfg.target_cycle_production if default_cfg else 0.0),
-                        packaging_type=item.get("packaging_type", ""),
+                        raw_material=raw_material_value,
+                        final_production_weight_kg=final_weight_kg,
+                        final_production_quantity=entered_quantity,
+                        final_production_unit=final_unit,
+                        final_production_unit_name=unit_name,
+                        target_cycle_production=fixed_target,
+                        target_cycle_unit_name=fixed_cycle_unit,
+                        packaging_type=packaging_value,
                         notes=item.get("notes", ""),
                     ))
 

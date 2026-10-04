@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{% if instance %}تعديل{% else %}إضافة{% endif %} {{ category_label }} | الإنتاج{% endblock %}
+{% block content %}
+<div class="page-title"><div><h1>{% if instance %}تعديل{% else %}إضافة{% endif %} {{ category_label }}</h1><p>المصنع: <strong>{{ factory.name }}</strong></p></div><a class="btn ghost" href="{% url 'production:production_options' category=category %}?factory={{ factory.id }}">رجوع للقائمة</a></div>
+<div class="card form-panel"><form method="post">{% csrf_token %}{% if is_admin %}<input type="hidden" name="factory" value="{{ factory.id }}">{% endif %}
+  {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small class="helptext">{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}
+  {% if category == 'FINAL_UNIT' %}<small class="helptext">مثال: عند إدخال 10 بالفة، ضع الوزن بالكيلو للبالفة إن كان معروفاً؛ اتركه فارغاً إذا تعذر التحويل. ستبقى الكمية ظاهرة بوحدتها حتى إن لم تدخل معادلة.</small>{% endif %}
+  <div class="form-actions"><button type="submit" class="btn primary">حفظ</button><a class="btn ghost" href="{% url 'production:production_options' category=category %}?factory={{ factory.id }}">إلغاء</a></div>
+</form></div>
+{% endblock %}

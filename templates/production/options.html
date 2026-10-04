@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}الخامات والوحدات والعبوات | الإنتاج{% endblock %}
+{% block content %}
+<div class="page-title">
+  <div><h1>قوائم الاختيار لتطبيق الإنتاج</h1><p>أضف أسماء جاهزة ليختارها المشرف بلمسة واحدة بدلاً من كتابتها على الهاتف.</p></div>
+  {% if factory %}<a class="btn primary" href="{% url 'production:production_option_add' category=category %}?factory={{ factory.id }}">إضافة {{ category_label }}</a>{% elif is_admin and factories %}<a class="btn primary" href="{% url 'production:production_option_add' category=category %}?factory={{ factories.0.id }}">إضافة {{ category_label }}</a>{% endif %}
+</div>
+
+<div class="factory-switch-pills" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
+  {% for key,label in categories %}<a class="btn small {% if category == key %}primary{% else %}ghost{% endif %}" href="{% url 'production:production_options' category=key %}{% if factory %}?factory={{ factory.id }}{% endif %}">{{ label }}</a>{% endfor %}
+</div>
+{% if is_admin and factories %}
+<div class="factory-switch-pills" style="margin-bottom:20px;display:flex;gap:8px;flex-wrap:wrap">
+  <a class="btn small {% if not factory %}primary{% else %}ghost{% endif %}" href="?factory=all">كافة المصانع</a>
+  {% for f in factories %}<a class="btn small {% if factory.id == f.id %}primary{% else %}ghost{% endif %}" href="?factory={{ f.id }}">{{ f.name }}</a>{% endfor %}
+</div>
+{% endif %}
+
+<div class="panel"><div class="table-wrap"><table>
+  <thead><tr>{% if not factory %}<th>المصنع</th>{% endif %}<th>الاختيار</th>{% if category == 'FINAL_UNIT' %}<th>معادل الكيلو</th>{% endif %}<th>الحالة</th><th>إجراء</th></tr></thead>
+  <tbody>
+  {% for option in options %}<tr>
+    {% if not factory %}<td>{{ option.factory.name }}</td>{% endif %}<td><strong>{{ option.name }}</strong></td>
+    {% if category == 'FINAL_UNIT' %}<td>{% if option.kg_per_unit %}{{ option.kg_per_unit }} كجم{% else %}<span class="text-muted">غير محدد</span>{% endif %}</td>{% endif %}
+    <td>{% if option.is_active %}<span class="badge success">نشط</span>{% else %}<span class="badge muted">متوقف</span>{% endif %}</td>
+    <td style="display:flex;gap:6px"><a class="btn small ghost" href="{% url 'production:production_option_edit' category=category pk=option.pk %}?factory={{ option.factory_id }}">تعديل</a><form method="post" action="{% url 'production:production_option_toggle' category=category pk=option.pk %}?factory={{ option.factory_id }}">{% csrf_token %}<button class="btn small ghost" type="submit">{% if option.is_active %}إيقاف{% else %}تفعيل{% endif %}</button></form></td>
+  </tr>{% empty %}<tr><td colspan="5" class="text-center" style="padding:24px">لا توجد اختيارات بعد. أضف أول {{ category_label }} لتظهر للمشرف في التطبيق.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+<p class="helptext" style="margin-top:14px">إيقاف اختيار يخفيه عن الورديات الجديدة، وتبقى التقارير القديمة محفوظة كما سُجلت.</p>
+{% endblock %}

@@ -37,10 +37,38 @@ class MachineOperator(models.Model):
         return self.name
 
 
+class ProductionOption(models.Model):
+    class Category(models.TextChoices):
+        RAW_MATERIAL = "RAW_MATERIAL", "خامة"
+        FINAL_UNIT = "FINAL_UNIT", "وحدة الإنتاج الفعلي"
+        CYCLE_UNIT = "CYCLE_UNIT", "وحدة مستهدف الدورة"
+        PACKAGING = "PACKAGING", "عبوة"
+
+    factory = models.ForeignKey("factories.Factory", on_delete=models.CASCADE, related_name="production_options", verbose_name="المصنع")
+    category = models.CharField("نوع الاختيار", max_length=20, choices=Category.choices, db_index=True)
+    name = models.CharField("الاسم", max_length=100)
+    is_active = models.BooleanField("نشط", default=True)
+    kg_per_unit = models.FloatField("الوزن بالكيلو لكل وحدة (اختياري)", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["category", "name"]
+        constraints = [models.UniqueConstraint(fields=["factory", "category", "name"], name="uniq_production_option_factory_category_name")]
+        verbose_name = "اختيار إنتاج"
+        verbose_name_plural = "اختيارات الإنتاج"
+
+    def __str__(self):
+        return self.name
+
+
 class MachineProductionDefault(models.Model):
     asset = models.OneToOneField("assets.Asset", on_delete=models.CASCADE, related_name="production_default", verbose_name="الماكينة")
     default_product = models.ForeignKey(Product, null=True, blank=True, on_delete=models.SET_NULL, related_name="default_machines", verbose_name="المنتج الافتراضي")
     default_operator = models.ForeignKey(MachineOperator, null=True, blank=True, on_delete=models.SET_NULL, related_name="default_machines", verbose_name="القائم على الماكينة الافتراضي")
+    default_raw_material = models.ForeignKey(ProductionOption, null=True, blank=True, on_delete=models.SET_NULL, related_name="default_material_machines", verbose_name="الخامة الافتراضية")
+    default_final_unit = models.ForeignKey(ProductionOption, null=True, blank=True, on_delete=models.SET_NULL, related_name="default_final_unit_machines", verbose_name="وحدة الإنتاج الفعلي الافتراضية")
+    target_cycle_unit = models.ForeignKey(ProductionOption, null=True, blank=True, on_delete=models.SET_NULL, related_name="target_cycle_machines", verbose_name="وحدة مستهدف الدورة")
+    default_packaging = models.ForeignKey(ProductionOption, null=True, blank=True, on_delete=models.SET_NULL, related_name="default_packaging_machines", verbose_name="العبوة الافتراضية")
     original_cavities = models.PositiveIntegerField("عدد اللقم الأصلي", default=1)
     cooling_time_seconds = models.FloatField("زمن التبريد (ثانية)", default=0.0)
     cycle_time_seconds = models.FloatField("زمن الدورة (ثانية)", default=0.0)
@@ -144,7 +172,11 @@ class MachineProductionEntry(models.Model):
     # Materials & Output
     raw_material = models.CharField("الخامة المستخدمة", max_length=150, blank=True, default="")
     final_production_weight_kg = models.FloatField("وزن الإنتاج النهائي بالكيلو", default=0.0)
+    final_production_quantity = models.FloatField("كمية الإنتاج النهائي", default=0.0)
+    final_production_unit_name = models.CharField("وحدة كمية الإنتاج", max_length=100, blank=True, default="كجم")
+    final_production_unit = models.ForeignKey(ProductionOption, null=True, blank=True, on_delete=models.SET_NULL, related_name="production_entries", verbose_name="وحدة الإنتاج الفعلي")
     target_cycle_production = models.FloatField("الإنتاج حسب زمن الدورة", default=0.0)
+    target_cycle_unit_name = models.CharField("وحدة مستهدف الدورة", max_length=100, blank=True, default="")
     packaging_type = models.CharField("العبوة", max_length=100, blank=True, default="")
     notes = models.TextField("ملاحظات الماكينة", blank=True, default="")
 

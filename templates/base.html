@@ -21,6 +21,7 @@
     <a class="{% if current == 'home' %}active{% endif %}" href="{% url 'production:home' %}"><span>{% icon "home" %}</span>لوحة الإنتاج</a>
     <a class="{% if current == 'reports' or current == 'report_detail' %}active{% endif %}" href="{% url 'production:reports' %}"><span>{% icon "reports" %}</span>تقارير الوردية</a>
     <a class="{% if current == 'machine_defaults' or current == 'machine_default_edit' %}active{% endif %}" href="{% url 'production:machine_defaults' %}"><span>{% icon "machine" %}</span>إعدادات الماكينات (اللقم والدورة)</a>
+    <a class="{% if current == 'production_options' or current == 'production_option_add' or current == 'production_option_edit' %}active{% endif %}" href="{% url 'production:production_options' category='RAW_MATERIAL' %}"><span>{% icon "products" %}</span>الخامات والوحدات والعبوات</a>
     <a class="{% if current == 'products' or current == 'product_add' or current == 'product_edit' %}active{% endif %}" href="{% url 'production:products' %}"><span>{% icon "products" %}</span>المنتجات</a>
     <a class="{% if current == 'operators' or current == 'operator_add' or current == 'operator_edit' %}active{% endif %}" href="{% url 'production:operators' %}"><span>{% icon "operator" %}</span>القائمين على الماكينات</a>
     <a class="{% if current == 'stoppages' %}active{% endif %}" href="{% url 'production:stoppages' %}"><span>{% icon "stoppage" %}</span>الأعطال والتوقفات</a>

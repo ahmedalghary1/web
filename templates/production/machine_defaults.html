@@ -6,7 +6,7 @@
 <div class="page-title">
   <div>
     <h1>إعدادات الإنتاج الافتراضية للماكينات</h1>
-    <p>تحديد عدد اللقم الأصلي، التبريد، الدورة، الإنتاج المستهدف، والمنتج الافتراضي لكل ماكينة (قابلة للتعديل من لوحة التحكم فقط وتظهر كقيم مقفولة في تطبيق الموبايل){% if factory %} · <strong>المصنع: {{ factory.name }}</strong>{% else %} · <strong>كافة المصانع</strong>{% endif %}</p>
+            <p>تحديد القيم التلقائية والثابتة لكل ماكينة؛ يغيّر المشرف القيم الفعلية المسموح بها عند الحاجة داخل تطبيق الإنتاج.{% if factory %} · <strong>المصنع: {{ factory.name }}</strong>{% else %} · <strong>كافة المصانع</strong>{% endif %}</p>
   </div>
 </div>
 
@@ -29,10 +29,13 @@
           <th>كود الماكينة</th>
           <th>المنتج الافتراضي</th>
           <th>العامل الافتراضي</th>
+          <th>الخامة الافتراضية</th>
+          <th>وحدة الكمية</th>
           <th>عدد اللقم الأصلي</th>
           <th>التبريد (ث)</th>
           <th>الدورة (ث)</th>
-          <th>الإنتاج حسب زمن الدورة</th>
+          <th>إنتاج الدورة</th>
+          <th>العبوة الافتراضية</th>
           <th>الإجراء</th>
         </tr>
       </thead>
@@ -61,6 +64,8 @@
               <span style="color:var(--muted);">- غير محدد -</span>
             {% endif %}
           </td>
+          <td>{{ def.default_raw_material.name|default:"- غير محدد -" }}</td>
+          <td>{{ def.default_final_unit.name|default:"كجم" }}</td>
           <td>
             <strong>{{ def.original_cavities|default:1 }}</strong>
           </td>
@@ -71,8 +76,9 @@
             <strong>{{ def.cycle_time_seconds|default:"0.0" }} ث</strong>
           </td>
           <td>
-            <strong>{{ def.target_cycle_production|default:"0.0" }}</strong>
+            <strong>{{ def.target_cycle_production|default:"0.0" }} {{ def.target_cycle_unit.name }}</strong>
           </td>
+          <td>{{ def.default_packaging.name|default:"-" }}</td>
           <td>
             <a href="{% url 'production:machine_default_edit' asset.id %}" class="btn small primary">{% icon "edit" %} تعديل الإعدادات</a>
           </td>
@@ -80,7 +86,7 @@
         {% endwith %}
         {% empty %}
         <tr>
-          <td colspan="{% if not factory %}9{% else %}8{% endif %}" class="text-center" style="padding:24px;">لا توجد ماكينات مسجلة.</td>
+          <td colspan="{% if not factory %}12{% else %}11{% endif %}" class="text-center" style="padding:24px;">لا توجد ماكينات مسجلة.</td>
         </tr>
         {% endfor %}
       </tbody>

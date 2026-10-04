@@ -5,7 +5,7 @@
 <div class="page-title">
   <div>
     <h1>تعديل إعدادات الماكينة: {{ asset.asset_code }}</h1>
-    <p>هذه القيم تظهر لمشرف الوردية في تطبيق الموبايل كقيم ثابتة (مقفولة بـ Lock) ولا يمكن تعديلها إلا من لوحة التحكم.</p>
+    <p>تظهر الإعدادات تلقائياً في تطبيق الإنتاج. يمكن للمشرف تغيير العامل والمنتج والأزمنة والخامة والعبوة عند الحاجة، بينما يظل مستهدف الدورة ثابتاً.</p>
   </div>
   <div>
     <a href="{% url 'production:machine_defaults' %}" class="btn ghost">← إلغاء والعودة</a>
@@ -25,11 +25,17 @@
     <div class="field">
       <label for="id_default_operator">القائم على الماكينة الافتراضي:</label>
       {{ form.default_operator }}
-      <small class="helptext">العامل المقترح تلقائياً للماكينة (ويمكن للمشرف تغييره واختيار غيره أو إدخال اسم يدوي).</small>
+      <small class="helptext">اختياري؛ يظهر تلقائياً ويمكن تغييره من التطبيق.</small>
     </div>
 
     <div class="field">
-      <label for="id_original_cavities">عدد اللقم الأصلي:</label>
+      <label for="id_default_raw_material">الخامة الافتراضية:</label>
+      {{ form.default_raw_material }}
+      <small class="helptext">تُختار تلقائياً من قائمة خامات هذا المصنع. <a href="{% url 'production:production_options' category='RAW_MATERIAL' %}">إدارة الخامات</a></small>
+    </div>
+
+    <div class="field">
+      <label for="id_original_cavities">عدد اللقم الأصلي (ثابت):</label>
       {{ form.original_cavities }}
       <small class="helptext">عدد عيون / لقم الاسطمبة الأصلي للماكينة (يظهر في الموبايل ومقفول عن التعديل).</small>
     </div>
@@ -38,20 +44,38 @@
       <div class="field">
         <label for="id_cooling_time_seconds">التبريد (بالثواني):</label>
         {{ form.cooling_time_seconds }}
-        <small class="helptext">زمن التبريد للماكينة.</small>
+        <small class="helptext">قيمة افتراضية، ويمكن تعديلها في الوردية.</small>
       </div>
 
       <div class="field">
         <label for="id_cycle_time_seconds">الدورة (بالثواني):</label>
         {{ form.cycle_time_seconds }}
-        <small class="helptext">زمن دورة الحقن / النفخ كاملة.</small>
+        <small class="helptext">قيمة افتراضية، ويمكن تعديلها في الوردية.</small>
       </div>
     </div>
 
     <div class="field">
-      <label for="id_target_cycle_production">الإنتاج حسب زمن الدورة (المستهدف بالوردية):</label>
+      <label for="id_target_cycle_production">إنتاج الدورة المستهدف:</label>
       {{ form.target_cycle_production }}
-      <small class="helptext">حجم الإنتاج النظري المستهدف خلال الوردية استناداً لزمن الدورة واللقم.</small>
+      <small class="helptext">قيمة ثابتة للمشرف في التطبيق. اختر وحدة القياس هنا؛ يستخدم التطبيق القيمة والوحدة كما هما.</small>
+    </div>
+
+    <div class="field">
+      <label for="id_target_cycle_unit">وحدة إنتاج الدورة:</label>
+      {{ form.target_cycle_unit }}
+      <small class="helptext"><a href="{% url 'production:production_options' category='CYCLE_UNIT' %}">إدارة وحدات المستهدف</a></small>
+    </div>
+
+    <div class="field">
+      <label for="id_default_final_unit">وحدة الإنتاج الفعلي الافتراضية:</label>
+      {{ form.default_final_unit }}
+      <small class="helptext">مثلاً كجم أو بَلفة. يمكن للمشرف اختيار وحدة أخرى في التطبيق. <a href="{% url 'production:production_options' category='FINAL_UNIT' %}">إدارة الوحدات</a></small>
+    </div>
+
+    <div class="field">
+      <label for="id_default_packaging">العبوة الافتراضية:</label>
+      {{ form.default_packaging }}
+      <small class="helptext">مثلاً برميل أو برميل + كيس. يمكن تغييرها في التطبيق. <a href="{% url 'production:production_options' category='PACKAGING' %}">إدارة العبوات</a></small>
     </div>
 
 

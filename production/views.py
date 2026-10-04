@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Sum, Count, Q
 from django.core.paginator import Paginator
+from django.views.decorators.http import require_POST
 
 from assets.models import Asset
 from factories.models import Factory
@@ -12,11 +13,12 @@ from .models import (
     Product,
     MachineOperator,
     MachineProductionDefault,
+    ProductionOption,
     ProductionShiftReport,
     MachineProductionEntry,
     ProductionStoppage,
 )
-from .forms import MachineProductionDefaultForm, ProductForm, MachineOperatorForm
+from .forms import MachineProductionDefaultForm, ProductForm, MachineOperatorForm, ProductionOptionForm
 
 
 def production_access_required(view_func):
@@ -253,6 +255,10 @@ def machine_defaults(request):
             "production_default",
             "production_default__default_product",
             "production_default__default_operator",
+            "production_default__default_raw_material",
+            "production_default__default_final_unit",
+            "production_default__target_cycle_unit",
+            "production_default__default_packaging",
             "factory",
         ).order_by("sequence_order", "id")
     else:
@@ -262,6 +268,10 @@ def machine_defaults(request):
             "production_default",
             "production_default__default_product",
             "production_default__default_operator",
+            "production_default__default_raw_material",
+            "production_default__default_final_unit",
+            "production_default__target_cycle_unit",
+            "production_default__default_packaging",
             "factory",
         ).order_by("factory__id", "sequence_order", "id")
 
@@ -299,6 +309,81 @@ def machine_default_edit(request, asset_id):
         "is_admin": is_admin,
     }
     return render(request, "production/machine_default_edit.html", context)
+
+
+@production_access_required
+def production_options(request, category):
+    factory, factories, is_admin = get_active_factory_context(request)
+    category_labels = dict(ProductionOption.Category.choices)
+    if category not in category_labels:
+        return redirect("production:production_options", category=ProductionOption.Category.RAW_MATERIAL)
+    options = ProductionOption.objects.filter(category=category)
+    if factory:
+        options = options.filter(factory=factory)
+    context = {
+        "options": options.select_related("factory"), "factory": factory,
+        "factories": factories, "is_admin": is_admin, "category": category,
+        "category_label": category_labels[category], "categories": ProductionOption.Category.choices,
+    }
+    return render(request, "production/options.html", context)
+
+
+@production_access_required
+def production_option_form(request, category, pk=None):
+    factory, factories, is_admin = get_active_factory_context(request)
+    category_labels = dict(ProductionOption.Category.choices)
+    if category not in category_labels:
+        return redirect("production:production_options", category=ProductionOption.Category.RAW_MATERIAL)
+    if is_admin:
+        requested_factory = request.POST.get("factory") if request.method == "POST" else request.GET.get("factory")
+        if requested_factory and requested_factory != "all":
+            factory = get_object_or_404(Factory, pk=requested_factory, is_active=True)
+        elif factory is None and factories:
+            factory = factories[0]
+    if not factory:
+        messages.error(request, "اختر مصنعاً أولاً لإدارة اختيارات الإنتاج.")
+        return redirect("production:production_options", category=category)
+    instance = get_object_or_404(ProductionOption, pk=pk, factory=factory, category=category) if pk else None
+    if request.method == "POST":
+        form = ProductionOptionForm(request.POST, instance=instance, category=category)
+        if form.is_valid():
+            option = form.save(commit=False)
+            option.factory = factory
+            option.category = category
+            option.save()
+            messages.success(request, f"تم حفظ {category_labels[category]} «{option.name}».")
+            return redirect("production:production_options", category=category)
+    else:
+        form = ProductionOptionForm(instance=instance, category=category)
+    return render(request, "production/option_form.html", {
+        "form": form, "instance": instance, "factory": factory, "factories": factories,
+        "is_admin": is_admin, "category": category, "category_label": category_labels[category],
+    })
+
+
+@production_access_required
+@require_POST
+def production_option_toggle(request, category, pk):
+    factory, _, is_admin = get_active_factory_context(request)
+    query = {"pk": pk, "category": category}
+    if not is_admin:
+        query["factory"] = request.user.factory
+    elif factory:
+        query["factory"] = factory
+    option = get_object_or_404(ProductionOption, **query)
+    option.is_active = not option.is_active
+    option.save(update_fields=["is_active"])
+    if not option.is_active:
+        default_field = {
+            ProductionOption.Category.RAW_MATERIAL: "default_raw_material",
+            ProductionOption.Category.FINAL_UNIT: "default_final_unit",
+            ProductionOption.Category.CYCLE_UNIT: "target_cycle_unit",
+            ProductionOption.Category.PACKAGING: "default_packaging",
+        }[category]
+        MachineProductionDefault.objects.filter(asset__factory=option.factory, **{default_field: option}).update(**{default_field: None})
+    status_label = "تفعيل" if option.is_active else "إيقاف"
+    messages.success(request, f"تم {status_label} الاختيار «{option.name}».")
+    return redirect("production:production_options", category=category)
 
 
 @production_access_required
