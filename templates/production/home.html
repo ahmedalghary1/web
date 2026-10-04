@@ -99,6 +99,7 @@
           <td><strong>{{ rep.total_weight }} كجم</strong></td>
           <td>{{ rep.created_at|date:"h:i A" }}</td>
           <td>
+            <a href="{% url 'production:report_export_excel' rep.id %}" class="btn small ghost">Excel</a>
             <a href="{% url 'production:report_detail' rep.id %}" class="btn small primary">{% icon "handshake" %} مراجعة واستلام الوردية</a>
           </td>
         </tr>
@@ -168,6 +169,7 @@
           </td>
           <td>{{ rep.handover_to_supervisor.display_name|default:"-" }}</td>
           <td>
+            <a href="{% url 'production:report_export_excel' rep.id %}" class="btn small primary">Excel</a>
             <a href="{% url 'production:report_detail' rep.id %}" class="btn small ghost">{% icon "eye" %} عرض التقرير</a>
           </td>
         </tr>

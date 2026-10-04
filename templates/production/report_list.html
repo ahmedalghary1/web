@@ -108,6 +108,7 @@
           </td>
           <td>{{ rep.handover_to_supervisor.display_name|default:"-" }}</td>
           <td>
+            <a href="{% url 'production:report_export_excel' rep.id %}" class="btn small primary">Excel</a>
             <a href="{% url 'production:report_detail' rep.id %}" class="btn small ghost">{% icon "eye" %} عرض التفاصيل</a>
           </td>
         </tr>

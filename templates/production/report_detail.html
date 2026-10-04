@@ -9,6 +9,7 @@
     <p>مشرف الوردية: <strong>{{ report.supervisor.display_name }}</strong> ({{ report.supervisor.phone }})</p>
   </div>
   <div>
+    <a href="{% url 'production:report_export_excel' report.id %}" class="btn primary">تنزيل التقرير Excel</a>
     <a href="{% url 'production:reports' %}" class="btn ghost">{% icon "arrow_right" %} العودة للتقارير</a>
   </div>
 </div>

@@ -6,6 +6,7 @@ app_name = "production"
 urlpatterns = [
     path("", views.home, name="home"),
     path("reports/", views.report_list, name="reports"),
+    path("reports/<int:pk>/export.xlsx", views.export_report_excel, name="report_export_excel"),
     path("reports/<int:pk>/", views.report_detail, name="report_detail"),
     path("reports/<int:pk>/confirm-handover/", views.confirm_handover, name="confirm-handover"),
     path("machine-defaults/", views.machine_defaults, name="machine_defaults"),
