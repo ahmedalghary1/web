@@ -8,8 +8,6 @@ from django.core.paginator import Paginator
 from django.views.decorators.http import require_POST
 from django.http import HttpResponse
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
 
 from assets.models import Asset
 from factories.models import Factory
@@ -223,6 +221,16 @@ def report_detail(request, pk):
 
 @production_access_required
 def export_report_excel(request, pk):
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+    except ModuleNotFoundError:
+        return HttpResponse(
+            "ميزة تصدير Excel تحتاج تثبيت openpyxl في بيئة الموقع ثم إعادة تشغيله.",
+            status=503,
+            content_type="text/plain; charset=utf-8",
+        )
+
     factory, _, is_admin = get_active_factory_context(request)
     reports = ProductionShiftReport.objects.select_related("factory", "supervisor")
     if not is_admin:
