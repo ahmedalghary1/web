@@ -1,47 +1,80 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from accounts.models import User
-from assets.models import Asset
+from assets.models import Asset, AssetType
 
 class PhoneAuthenticationForm(AuthenticationForm):
     username = forms.CharField(label="رقم الهاتف", widget=forms.TextInput(attrs={"placeholder": "رقم الهاتف", "autocomplete": "tel"}))
     password = forms.CharField(label="كلمة المرور", widget=forms.PasswordInput(attrs={"placeholder": "كلمة المرور"}))
+
+class AssetTypeForm(forms.ModelForm):
+    class Meta:
+        model = AssetType
+        fields = ["name", "code", "is_active"]
+        labels = {
+            "name": "اسم نوع الماكينة",
+            "code": "الكود التعريفي (اختياري)",
+            "is_active": "نشط",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "مثال: ماكينة حقن، ماكينة نفخ، مكبس، خط إنتاج..."}),
+            "code": forms.TextInput(attrs={"placeholder": "اتركه فارغاً للتوليد التلقائي (مثال: INJECTION, BLOW...)"}),
+        }
+        help_texts = {
+            "name": "الاسم الذي سيظهر لجميع الماكينات التابعة لهذا النوع في الموقع والتطبيق والتقارير.",
+            "code": "كود فريد للنوع بالإنجليزية، يمكنك تركه فارغاً وسيتم توليده تلقائياً من الاسم.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["code"].required = False
+
 class AssetForm(forms.ModelForm):
     class Meta:
         model = Asset
-        fields = ["factory", "name", "asset_type", "custom_type_name", "asset_code", "sequence_order", "is_active"]
+        fields = ["factory", "type_ref", "asset_code", "name", "sequence_order", "is_active"]
         labels = {
             "factory": "المصنع التابع له",
-            "name": "اسم الماكينة",
-            "asset_type": "نوع الماكينة",
-            "custom_type_name": "اسم النوع المخصص (في حال اختيار نوع آخر)",
-            "asset_code": "كود الماكينة",
+            "type_ref": "نوع الماكينة",
+            "asset_code": "رقم أو كود الماكينة",
+            "name": "اسم مخصص للماكينة (اختياري)",
             "sequence_order": "الترتيب في دورة الصيانة",
             "is_active": "الماكينة نشطة ومفعلة",
         }
         help_texts = {
-            "name": "الاسم المعروض للماكينة في الموقع والتقارير وتطبيق المشرف (مثال: مكبس 1، ماكينة درفلة، خط إنتاج 3...)",
-            "asset_code": "كود مميز للماكينة داخل المصنع. إذا تركته فارغاً سيتم تعيينه تلقائياً من اسم الماكينة.",
-            "custom_type_name": "إذا اخترت 'نوع آخر / مخصص'، اكتب اسم النوع هنا (مثال: ماكينة ليزر، مقص، خلاط...)",
+            "type_ref": "اختر نوع الماكينة. يمكنك إضافة وتعديل أنواع الماكينات من صفحة أنواع الماكينات.",
+            "asset_code": "رقم أو كود الماكينة داخل المصنع (مثال: 1، 2، M-01...).",
+            "name": "اختياري: اتركه فارغاً ليتكون الاسم تلقائياً من (نوع الماكينة + الكود) مثل: ماكينة حقن 1، وسينعكس أي تعديل في النوع تلقائياً.",
         }
         widgets = {
-            "name": forms.TextInput(attrs={"placeholder": "مثال: مكبس 1، ماكينة حقن 5، خط إنتاج..."}),
-            "asset_code": forms.TextInput(attrs={"placeholder": "مثال: M-1، P-1، أو نفس اسم الماكينة"}),
-            "custom_type_name": forms.TextInput(attrs={"placeholder": "اكتب نوع الماكينة إذا اخترت نوع آخر"}),
+            "asset_code": forms.TextInput(attrs={"placeholder": "مثال: 1 أو 2 أو M-01"}),
+            "name": forms.TextInput(attrs={"placeholder": "اتركه فارغاً للاستخدام التلقائي لاسم النوع + الكود"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from assets.models import ensure_default_asset_types
+        try:
+            ensure_default_asset_types()
+        except Exception:
+            pass
+        self.fields["type_ref"].queryset = AssetType.objects.filter(is_active=True)
+        self.fields["type_ref"].empty_label = "--- اختر نوع الماكينة ---"
+        self.fields["type_ref"].required = True
+        self.fields["name"].required = False
+        if self.instance and self.instance.pk:
+            if not self.instance.type_ref and self.instance.asset_type:
+                t = AssetType.objects.filter(code=self.instance.asset_type).first()
+                if t:
+                    self.initial["type_ref"] = t.pk
 
     def clean(self):
         cleaned_data = super().clean()
-        name = (cleaned_data.get("name") or "").strip()
-        code = (cleaned_data.get("asset_code") or "").strip()
-        if not code and name:
-            cleaned_data["asset_code"] = name
+        type_ref = cleaned_data.get("type_ref")
+        if type_ref:
+            cleaned_data["asset_type"] = type_ref.code
             if self.instance:
-                self.instance.asset_code = name
-        elif not name and code:
-            cleaned_data["name"] = code
-            if self.instance:
-                self.instance.name = code
+                self.instance.asset_type = type_ref.code
         return cleaned_data
 class SupervisorForm(forms.ModelForm):
     password = forms.CharField(

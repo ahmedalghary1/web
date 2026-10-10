@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load icons %}
+
+{% block title %}أنواع وتصنيفات الماكينات{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>أنواع وتصنيفات الماكينات</h1>
+    <p>إضافة وتعديل أنواع الماكينات (حقن، نفخ، مكبس، خطوط إنتاج...). عند تعديل اسم أي نوع سينعكس التعديل فوراً على كافة الماكينات والتقارير وتطبيق الجوال.</p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a class="btn ghost" href="{% url 'dashboard:assets' %}">{% icon "machine" %} قائمة الماكينات</a>
+    <a class="btn primary" href="{% url 'dashboard:asset-type-add' %}">{% icon "plus" %} إضافة نوع جديد</a>
+  </div>
+</div>
+
+<section class="panel">
+  {% if types %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>اسم نوع الماكينة</th>
+          <th>الكود التعريفي</th>
+          <th>عدد الماكينات التابعة</th>
+          <th>الحالة</th>
+          <th>إجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in types %}
+        <tr>
+          <td>
+            <strong>{{ t.name }}</strong>
+          </td>
+          <td>
+            <code>{{ t.code }}</code>
+          </td>
+          <td>
+            <span class="badge info">
+              {{ t.machine_count }} ماكينة
+            </span>
+          </td>
+          <td>
+            <span class="badge {% if t.is_active %}success{% else %}muted{% endif %}">
+              {% if t.is_active %}{% icon "check" %} نشط{% else %}معطل{% endif %}
+            </span>
+          </td>
+          <td class="actions">
+            <a href="{% url 'dashboard:asset-type-edit' t.id %}" class="btn ghost small">
+              {% icon "edit" %} تعديل الاسم
+            </a>
+            {% if t.machine_count == 0 %}
+            <form method="post" action="{% url 'dashboard:asset-type-delete' t.id %}" style="display:inline;" onsubmit="return confirm('هل أنت متأكد من حذف نوع الماكينة \'{{ t.name }}\'؟')">
+              {% csrf_token %}
+              <button type="submit" style="color:var(--error);" title="حذف">{% icon "trash" %} حذف</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span>{% icon "products" size="40" %}</span>
+    <h3>لا توجد أنواع ماكينات معرفة</h3>
+    <p>أضف أنواع الماكينات لكي تتمكن من تصنيف الماكينات وربطها بها.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -40,6 +40,7 @@
     {% if request.user.is_admin %}
     <a class="{% if current == 'factories' %}active{% endif %}" href="{% url 'dashboard:factories' %}"><span>{% icon "factories" %}</span>المصانع</a>
     <a class="{% if current == 'assets' or current == 'asset-add' or current == 'asset-edit' %}active{% endif %}" href="{% url 'dashboard:assets' %}"><span>{% icon "machine" %}</span>الماكينات</a>
+    <a class="{% if current == 'asset-types' or current == 'asset-type-add' or current == 'asset-type-edit' %}active{% endif %}" href="{% url 'dashboard:asset-types' %}"><span>{% icon "products" %}</span>أنواع الماكينات</a>
     <a class="{% if current == 'checklists' or current == 'checklist-add' or current == 'checklist-edit' or current == 'checklist-builder' %}active{% endif %}" href="{% url 'dashboard:checklists' %}"><span>{% icon "checklists" %}</span>قوائم الصيانة الدورية</a>
     <a class="{% if current == 'users' or current == 'user-add' or current == 'user-edit' %}active{% endif %}" href="{% url 'dashboard:users' %}"><span>{% icon "users" %}</span>المستخدمون</a>
     {% endif %}

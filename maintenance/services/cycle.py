@@ -36,7 +36,8 @@ class MaintenanceCycleService:
     @classmethod
     def template_for(cls, asset):
         active_items = Prefetch("sections__items", queryset=ChecklistItem.objects.filter(is_active=True))
-        return ChecklistTemplate.objects.prefetch_related(active_items).get(code=cls.TEMPLATE_BY_TYPE[asset.asset_type], is_active=True)
+        code = cls.TEMPLATE_BY_TYPE.get(asset.asset_type, "STANDARD")
+        return ChecklistTemplate.objects.prefetch_related(active_items).get(code=code, is_active=True)
 
     @classmethod
     def _next_after(cls, factory, previous):

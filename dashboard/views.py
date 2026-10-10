@@ -9,8 +9,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from accounts.models import User
-from assets.models import Asset
-from dashboard.forms import AccountUpdateForm, AssetForm, SupervisorForm
+from assets.models import Asset, AssetType, ensure_default_asset_types
+from dashboard.forms import AccountUpdateForm, AssetForm, AssetTypeForm, SupervisorForm
 from factories.models import Factory
 from maintenance.models import MaintenanceReport, MaintenanceReportItem
 from maintenance.services.cycle import MaintenanceCycleService
@@ -67,13 +67,59 @@ def home(request):
 @login_required
 @admin_required
 def asset_list(request):
-    qs = Asset.objects.select_related("factory").filter(is_archived=False)
+    try:
+        ensure_default_asset_types()
+    except Exception:
+        pass
+    qs = Asset.objects.select_related("factory", "type_ref").filter(is_archived=False)
     if request.GET.get("factory"): qs = qs.filter(factory_id=request.GET["factory"])
     if request.GET.get("asset_type"): qs = qs.filter(asset_type=request.GET["asset_type"])
     if request.GET.get("q"):
         query = request.GET["q"].strip()
         qs = qs.filter(Q(asset_code__icontains=query) | Q(name__icontains=query))
-    return render(request, "dashboard/assets.html", {"assets": qs, "factories": Factory.objects.all(), "types": Asset.Type.choices})
+    types = list(AssetType.objects.filter(is_active=True).values_list("code", "name")) or list(Asset.Type.choices)
+    return render(request, "dashboard/assets.html", {"assets": qs, "factories": Factory.objects.all(), "types": types})
+
+@login_required
+@admin_required
+def asset_type_list(request):
+    try:
+        ensure_default_asset_types()
+    except Exception:
+        pass
+    types = AssetType.objects.annotate(
+        machine_count=Count("assets", filter=Q(assets__is_archived=False))
+    ).order_by("id")
+    return render(request, "dashboard/asset_types.html", {"types": types})
+
+@login_required
+@admin_required
+def asset_type_form(request, pk=None):
+    obj = get_object_or_404(AssetType, pk=pk) if pk else None
+    form = AssetTypeForm(request.POST or None, instance=obj)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"تم حفظ نوع الماكينة '{form.instance.name}' بنجاح وتحديث كافة الماكينات المرتبطة به فورياً.")
+        return redirect("dashboard:asset-types")
+    delete_url = reverse("dashboard:asset-type-delete", args=[obj.pk]) if (obj and obj.assets.filter(is_archived=False).count() == 0) else None
+    return render(request, "dashboard/form.html", {
+        "form": form,
+        "title": f"تعديل نوع الماكينة: {obj.name}" if obj else "إضافة نوع ماكينة جديد",
+        "delete_url": delete_url,
+    })
+
+@login_required
+@admin_required
+def asset_type_delete(request, pk):
+    obj = get_object_or_404(AssetType, pk=pk)
+    if request.method == "POST":
+        if obj.assets.filter(is_archived=False).exists():
+            messages.error(request, f"لا يمكن حذف النوع '{obj.name}' لوجود ماكينات مسجلة به. يمكنك تعديل اسمه بدلاً من ذلك.")
+        else:
+            name = obj.name
+            obj.delete()
+            messages.success(request, f"تم حذف نوع الماكينة '{name}' بنجاح.")
+    return redirect("dashboard:asset-types")
 @login_required
 @admin_required
 def asset_form(request, pk=None):
