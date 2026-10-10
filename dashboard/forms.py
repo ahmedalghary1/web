@@ -7,7 +7,42 @@ class PhoneAuthenticationForm(AuthenticationForm):
     username = forms.CharField(label="رقم الهاتف", widget=forms.TextInput(attrs={"placeholder": "رقم الهاتف", "autocomplete": "tel"}))
     password = forms.CharField(label="كلمة المرور", widget=forms.PasswordInput(attrs={"placeholder": "كلمة المرور"}))
 class AssetForm(forms.ModelForm):
-    class Meta: model = Asset; fields = ["factory", "asset_type", "asset_code", "sequence_order", "is_active"]
+    class Meta:
+        model = Asset
+        fields = ["factory", "name", "asset_type", "custom_type_name", "asset_code", "sequence_order", "is_active"]
+        labels = {
+            "factory": "المصنع التابع له",
+            "name": "اسم الماكينة",
+            "asset_type": "نوع الماكينة",
+            "custom_type_name": "اسم النوع المخصص (في حال اختيار نوع آخر)",
+            "asset_code": "كود الماكينة",
+            "sequence_order": "الترتيب في دورة الصيانة",
+            "is_active": "الماكينة نشطة ومفعلة",
+        }
+        help_texts = {
+            "name": "الاسم المعروض للماكينة في الموقع والتقارير وتطبيق المشرف (مثال: مكبس 1، ماكينة درفلة، خط إنتاج 3...)",
+            "asset_code": "كود مميز للماكينة داخل المصنع. إذا تركته فارغاً سيتم تعيينه تلقائياً من اسم الماكينة.",
+            "custom_type_name": "إذا اخترت 'نوع آخر / مخصص'، اكتب اسم النوع هنا (مثال: ماكينة ليزر، مقص، خلاط...)",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "مثال: مكبس 1، ماكينة حقن 5، خط إنتاج..."}),
+            "asset_code": forms.TextInput(attrs={"placeholder": "مثال: M-1، P-1، أو نفس اسم الماكينة"}),
+            "custom_type_name": forms.TextInput(attrs={"placeholder": "اكتب نوع الماكينة إذا اخترت نوع آخر"}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = (cleaned_data.get("name") or "").strip()
+        code = (cleaned_data.get("asset_code") or "").strip()
+        if not code and name:
+            cleaned_data["asset_code"] = name
+            if self.instance:
+                self.instance.asset_code = name
+        elif not name and code:
+            cleaned_data["name"] = code
+            if self.instance:
+                self.instance.name = code
+        return cleaned_data
 class SupervisorForm(forms.ModelForm):
     password = forms.CharField(
         label="كلمة المرور",

@@ -70,7 +70,9 @@ def asset_list(request):
     qs = Asset.objects.select_related("factory").filter(is_archived=False)
     if request.GET.get("factory"): qs = qs.filter(factory_id=request.GET["factory"])
     if request.GET.get("asset_type"): qs = qs.filter(asset_type=request.GET["asset_type"])
-    if request.GET.get("q"): qs = qs.filter(asset_code__icontains=request.GET["q"])
+    if request.GET.get("q"):
+        query = request.GET["q"].strip()
+        qs = qs.filter(Q(asset_code__icontains=query) | Q(name__icontains=query))
     return render(request, "dashboard/assets.html", {"assets": qs, "factories": Factory.objects.all(), "types": Asset.Type.choices})
 @login_required
 @admin_required

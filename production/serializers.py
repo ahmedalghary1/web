@@ -76,7 +76,7 @@ class MachineProductionDefaultSerializer(serializers.ModelSerializer):
         return obj.default_packaging.name if obj.default_packaging else ""
 
 class ProductionAssetSerializer(serializers.ModelSerializer):
-    asset_type_display = serializers.CharField(source="get_asset_type_display", read_only=True)
+    asset_type_display = serializers.CharField(source="type_display", read_only=True)
     production_title = serializers.CharField(read_only=True)
     maintenance_title = serializers.CharField(source="production_title", read_only=True)
     display_name = serializers.CharField(read_only=True)
@@ -92,6 +92,7 @@ class ProductionAssetSerializer(serializers.ModelSerializer):
             "display_name",
             "asset_type",
             "asset_type_display",
+            "custom_type_name",
             "sequence_order",
             "is_active",
             "production_title",
@@ -110,6 +111,7 @@ class ProductionAssetSerializer(serializers.ModelSerializer):
 
 class MachineProductionEntrySerializer(serializers.ModelSerializer):
     asset_code = serializers.CharField(source="asset.asset_code", read_only=True)
+    display_name = serializers.CharField(source="asset.display_name", read_only=True)
     production_title = serializers.CharField(source="asset.production_title", read_only=True)
     maintenance_title = serializers.CharField(source="asset.production_title", read_only=True)
     
@@ -119,6 +121,7 @@ class MachineProductionEntrySerializer(serializers.ModelSerializer):
             "id",
             "asset",
             "asset_code",
+            "display_name",
             "production_title",
             "maintenance_title",
             "operator",
@@ -149,6 +152,7 @@ class MachineProductionEntrySerializer(serializers.ModelSerializer):
 
 class ProductionStoppageSerializer(serializers.ModelSerializer):
     asset_code = serializers.CharField(source="asset.asset_code", read_only=True, default="")
+    display_name = serializers.CharField(source="asset.display_name", read_only=True, default="")
     stoppage_type_display = serializers.CharField(source="get_stoppage_type_display", read_only=True)
 
     class Meta:
@@ -157,6 +161,7 @@ class ProductionStoppageSerializer(serializers.ModelSerializer):
             "id",
             "asset",
             "asset_code",
+            "display_name",
             "stoppage_type",
             "stoppage_type_display",
             "description",

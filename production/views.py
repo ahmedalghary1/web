@@ -278,7 +278,7 @@ def export_report_excel(request, pk):
             amount_kg = "غير محسوب"
         values = [
             entry.display_operator,
-            entry.asset.asset_code,
+            entry.asset.display_name,
             entry.display_product,
             entry.original_cavities,
             entry.current_cavities,

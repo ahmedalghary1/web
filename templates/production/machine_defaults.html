@@ -26,7 +26,7 @@
       <thead>
         <tr>
           {% if not factory %}<th>المصنع</th>{% endif %}
-          <th>كود الماكينة</th>
+          <th>الماكينة</th>
           <th>المنتج الافتراضي</th>
           <th>العامل الافتراضي</th>
           <th>الخامة الافتراضية</th>
@@ -45,7 +45,10 @@
         <tr>
           {% if not factory %}<td><span class="badge ghost" style="font-weight:600;">{{ asset.factory.name }}</span></td>{% endif %}
           <td>
-            <strong>{{ asset.asset_code }}</strong>
+            <strong>{{ asset.display_name }}</strong>
+            {% if asset.name and asset.asset_code != asset.name %}
+              <small style="display:block;color:var(--muted);font-size:11px;">كود: {{ asset.asset_code }}</small>
+            {% endif %}
             {% if not asset.is_active %}
               <span class="badge muted" style="font-size:11px; margin-right:4px;">متوقفة</span>
             {% endif %}
