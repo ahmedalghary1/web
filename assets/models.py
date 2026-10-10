@@ -27,8 +27,29 @@ class Asset(models.Model):
     def __str__(self): return self.asset_code
 
     @property
+    def display_name(self):
+        code = self.asset_code.strip()
+        if code.startswith("مكبس") or code.startswith("ماكينة") or code.startswith("خط"):
+            return code
+        if code.startswith("حقن") or code.startswith("نفخ"):
+            return f"ماكينة {code}"
+        if self.asset_type == self.Type.PRESS:
+            return f"مكبس {code}"
+        elif self.asset_type == self.Type.REGULAR_MACHINE:
+            return f"ماكينة حقن {code}"
+        elif self.asset_type == self.Type.SPRING_MACHINE:
+            return f"ماكينة نفخ {code}"
+        return f"{self.get_asset_type_display()} {code}"
+
+    @property
     def maintenance_title(self):
         code = self.asset_code.strip()
+        if code.startswith("الصيانة الدورية"):
+            return code
+        if code.startswith("مكبس") or code.startswith("ماكينة") or code.startswith("خط"):
+            return f"الصيانة الدورية ل{code}"
+        if code.startswith("حقن") or code.startswith("نفخ"):
+            return f"الصيانة الدورية لماكينة {code}"
         if self.asset_type == self.Type.REGULAR_MACHINE:
             return f"الصيانة الدورية لماكينة حقن {code}"
         elif self.asset_type == self.Type.SPRING_MACHINE:
@@ -40,6 +61,12 @@ class Asset(models.Model):
     @property
     def production_title(self):
         code = self.asset_code.strip()
+        if code.startswith("إنتاج"):
+            return code
+        if code.startswith("مكبس") or code.startswith("ماكينة") or code.startswith("خط"):
+            return f"إنتاج {code}"
+        if code.startswith("حقن") or code.startswith("نفخ"):
+            return f"إنتاج ماكينة {code}"
         if self.asset_type == self.Type.REGULAR_MACHINE:
             return f"إنتاج ماكينة حقن {code}"
         elif self.asset_type == self.Type.SPRING_MACHINE:
@@ -47,3 +74,4 @@ class Asset(models.Model):
         elif self.asset_type == self.Type.PRESS:
             return f"إنتاج مكبس {code}"
         return f"إنتاج {self.get_asset_type_display()} {code}"
+

@@ -79,6 +79,8 @@ class ProductionAssetSerializer(serializers.ModelSerializer):
     asset_type_display = serializers.CharField(source="get_asset_type_display", read_only=True)
     production_title = serializers.CharField(read_only=True)
     maintenance_title = serializers.CharField(source="production_title", read_only=True)
+    display_name = serializers.CharField(read_only=True)
+    name = serializers.CharField(source="display_name", read_only=True)
     production_default = serializers.SerializerMethodField()
 
     class Meta:
@@ -86,6 +88,8 @@ class ProductionAssetSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "asset_code",
+            "name",
+            "display_name",
             "asset_type",
             "asset_type_display",
             "sequence_order",

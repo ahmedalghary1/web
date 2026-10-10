@@ -269,7 +269,7 @@ def select_daily_asset(request, factory_id):
     asset = get_object_or_404(Asset, pk=request.POST.get("asset_id"), factory=factory)
     try:
         MaintenanceCycleService.select_current_asset(factory, asset, request.user)
-        messages.success(request, f"تم تعيين الماكينة {asset.asset_code} لمهمة {factory.name} اليوم.")
+        messages.success(request, f"تم تعيين الماكينة {asset.display_name} لمهمة {factory.name} اليوم.")
     except Exception as exc:
         detail = getattr(exc, "detail", str(exc))
         if isinstance(detail, list): detail = str(detail[0])
