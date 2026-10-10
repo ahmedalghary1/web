@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from accounts.models import User
-from assets.models import Asset, AssetType, ensure_default_asset_types
+from assets.models import Asset, AssetType, ensure_default_asset_types_if_empty
 from dashboard.forms import AccountUpdateForm, AssetForm, AssetTypeForm, SupervisorForm
 from factories.models import Factory
 from maintenance.models import MaintenanceReport, MaintenanceReportItem
@@ -68,7 +68,7 @@ def home(request):
 @admin_required
 def asset_list(request):
     try:
-        ensure_default_asset_types()
+        ensure_default_asset_types_if_empty()
     except Exception:
         pass
     qs = Asset.objects.select_related("factory", "type_ref").filter(is_archived=False)
@@ -84,7 +84,7 @@ def asset_list(request):
 @admin_required
 def asset_type_list(request):
     try:
-        ensure_default_asset_types()
+        ensure_default_asset_types_if_empty()
     except Exception:
         pass
     types = AssetType.objects.annotate(
@@ -101,7 +101,7 @@ def asset_type_form(request, pk=None):
         form.save()
         messages.success(request, f"تم حفظ نوع الماكينة '{form.instance.name}' بنجاح وتحديث كافة الماكينات المرتبطة به فورياً.")
         return redirect("dashboard:asset-types")
-    delete_url = reverse("dashboard:asset-type-delete", args=[obj.pk]) if (obj and obj.assets.filter(is_archived=False).count() == 0) else None
+    delete_url = reverse("dashboard:asset-type-delete", args=[obj.pk]) if obj else None
     return render(request, "dashboard/form.html", {
         "form": form,
         "title": f"تعديل نوع الماكينة: {obj.name}" if obj else "إضافة نوع ماكينة جديد",
@@ -112,14 +112,17 @@ def asset_type_form(request, pk=None):
 @admin_required
 def asset_type_delete(request, pk):
     obj = get_object_or_404(AssetType, pk=pk)
+    machine_count = obj.assets.filter(is_archived=False).count()
     if request.method == "POST":
-        if obj.assets.filter(is_archived=False).exists():
-            messages.error(request, f"لا يمكن حذف النوع '{obj.name}' لوجود ماكينات مسجلة به. يمكنك تعديل اسمه بدلاً من ذلك.")
-        else:
-            name = obj.name
-            obj.delete()
-            messages.success(request, f"تم حذف نوع الماكينة '{name}' بنجاح.")
-    return redirect("dashboard:asset-types")
+        name = obj.name
+        obj.assets.update(type_ref=None)
+        obj.delete()
+        messages.success(request, f"تم حذف نوع الماكينة '{name}' بنجاح.")
+        return redirect("dashboard:asset-types")
+    return render(request, "dashboard/asset_type_delete_confirm.html", {
+        "asset_type": obj,
+        "machine_count": machine_count,
+    })
 @login_required
 @admin_required
 def asset_form(request, pk=None):

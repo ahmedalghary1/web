@@ -51,12 +51,12 @@
             <a href="{% url 'dashboard:asset-type-edit' t.id %}" class="btn ghost small">
               {% icon "edit" %} تعديل الاسم
             </a>
-            {% if t.machine_count == 0 %}
-            <form method="post" action="{% url 'dashboard:asset-type-delete' t.id %}" style="display:inline;" onsubmit="return confirm('هل أنت متأكد من حذف نوع الماكينة \'{{ t.name }}\'؟')">
+            <form method="post" action="{% url 'dashboard:asset-type-delete' t.id %}" style="display:inline;" onsubmit="return confirm('هل أنت متأكد من حذف نوع الماكينة \'{{ t.name }}\'؟{% if t.machine_count %} (تنبيه: يوجد {{ t.machine_count }} ماكينة مسجلة بهذا النوع وسيتم فك ارتباطها){% endif %}')">
               {% csrf_token %}
-              <button type="submit" style="color:var(--error);" title="حذف">{% icon "trash" %} حذف</button>
+              <button type="submit" style="color:var(--error);background:none;border:none;cursor:pointer;padding:4px 8px;font-size:13px;display:inline-flex;align-items:center;gap:4px;" title="حذف">
+                {% icon "trash" %} حذف
+              </button>
             </form>
-            {% endif %}
           </td>
         </tr>
         {% endfor %}

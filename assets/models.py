@@ -68,6 +68,11 @@ def ensure_default_asset_types():
         AssetType.objects.get_or_create(code=code, defaults={"name": name})
 
 
+def ensure_default_asset_types_if_empty():
+    if not AssetType.objects.exists():
+        ensure_default_asset_types()
+
+
 class Asset(models.Model):
     class Type(models.TextChoices):
         REGULAR_MACHINE = "REGULAR_MACHINE", "ماكينة حقن"

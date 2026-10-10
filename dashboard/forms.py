@@ -53,9 +53,9 @@ class AssetForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from assets.models import ensure_default_asset_types
+        from assets.models import ensure_default_asset_types_if_empty
         try:
-            ensure_default_asset_types()
+            ensure_default_asset_types_if_empty()
         except Exception:
             pass
         self.fields["type_ref"].queryset = AssetType.objects.filter(is_active=True)

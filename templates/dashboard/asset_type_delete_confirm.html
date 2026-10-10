@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load icons %}
+
+{% block title %}تأكيد حذف نوع الماكينة {{ asset_type.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  <div>
+    <h1>حذف نوع الماكينة</h1>
+    <p>تأكيد حذف النوع من النظام</p>
+  </div>
+</div>
+
+<section class="panel form-panel" style="max-width: 600px;">
+  <div class="panel-title" style="margin-bottom: 20px;">
+    <h2>نوع الماكينة: <span style="color: var(--primary);">{{ asset_type.name }}</span></h2>
+  </div>
+
+  <div class="account-row">
+    <span>اسم النوع</span>
+    <strong>{{ asset_type.name }}</strong>
+  </div>
+  <div class="account-row">
+    <span>الكود التعريفي</span>
+    <strong><code>{{ asset_type.code }}</code></strong>
+  </div>
+  <div class="account-row">
+    <span>عدد الماكينات المرتبطة</span>
+    <strong><span class="badge {% if machine_count %}warning{% else %}muted{% endif %}">{{ machine_count }} ماكينة</span></strong>
+  </div>
+
+  {% if machine_count %}
+  <div class="alert warning" style="margin-top: 20px; margin-bottom: 20px;">
+    <span>⚠️</span>
+    <div>
+      <strong>تنبيه:</strong> يوجد <strong>{{ machine_count }}</strong> ماكينة مسجلة بهذا النوع.
+      عند الحذف سيتم فك ارتباط هذه الماكينات بهذا النوع وسيبقى بإمكانك تصنيفها لأي نوع آخر.
+    </div>
+  </div>
+  {% else %}
+  <div class="alert info" style="margin-top: 20px; margin-bottom: 20px;">
+    <span>ℹ</span>
+    <div>
+      لا توجد ماكينات مرتبطة بهذا النوع حالياً. يمكن حذفه بأمان.
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'dashboard:asset-type-delete' asset_type.id %}">
+    {% csrf_token %}
+    <div class="form-actions" style="margin-top: 24px;">
+      <button class="btn" style="background: var(--error); color: #fff; border-color: var(--error);" type="submit">
+        {% icon "trash" %} نعم، احذف هذا النوع
+      </button>
+      <a class="btn ghost" href="{% url 'dashboard:asset-types' %}">إلغاء</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

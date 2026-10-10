@@ -162,3 +162,78 @@ class AssetDeleteTests(TestCase):
         response = self.client.post(reverse("dashboard:asset-delete", args=[asset.id]))
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Asset.objects.filter(id=asset.id).exists())
+
+
+class AssetTypeManagementTests(TestCase):
+    def setUp(self):
+        from assets.models import AssetType
+        self.AssetType = AssetType
+        self.factory = Factory.objects.get(code="F1")
+        self.admin = User.objects.create_superuser("01000000999", "StrongPass!123")
+        self.client.force_login(self.admin)
+
+    def test_asset_type_list_and_add(self):
+        response = self.client.get(reverse("dashboard:asset-types"))
+        self.assertEqual(response.status_code, 200)
+
+        # Add new custom type
+        add_response = self.client.post(reverse("dashboard:asset-type-add"), {
+            "name": "ماكينة ليزر جديدة",
+            "code": "LASER_NEW",
+            "is_active": True,
+        }, follow=True)
+        self.assertEqual(add_response.status_code, 200)
+        self.assertTrue(self.AssetType.objects.filter(code="LASER_NEW").exists())
+        self.assertContains(add_response, "ماكينة ليزر جديدة")
+
+    def test_renaming_asset_type_immediately_propagates_to_machines(self):
+        t = self.AssetType.objects.filter(code="REGULAR_MACHINE").first()
+        asset = Asset.objects.create(
+            factory=self.factory,
+            type_ref=t,
+            asset_code="10",
+            sequence_order=99,
+        )
+        self.assertIn("ماكينة حقن", asset.display_name)
+
+        # Rename type via form
+        edit_response = self.client.post(reverse("dashboard:asset-type-edit", args=[t.id]), {
+            "name": "حقن بلاستيك حديثة",
+            "code": t.code,
+            "is_active": True,
+        }, follow=True)
+        self.assertEqual(edit_response.status_code, 200)
+
+        t.refresh_from_db()
+        self.assertEqual(t.name, "حقن بلاستيك حديثة")
+
+        # Check machine reflects new name immediately
+        asset.refresh_from_db()
+        self.assertEqual(asset.type_display, "حقن بلاستيك حديثة")
+        self.assertEqual(asset.get_asset_type_display(), "حقن بلاستيك حديثة")
+        self.assertEqual(asset.display_name, "حقن بلاستيك حديثة 10")
+        self.assertEqual(asset.maintenance_title, "الصيانة الدورية لـ حقن بلاستيك حديثة 10")
+        self.assertEqual(asset.production_title, "إنتاج حقن بلاستيك حديثة 10")
+
+        # Check assets list reflects updated name
+        assets_res = self.client.get(reverse("dashboard:assets"))
+        self.assertContains(assets_res, "حقن بلاستيك حديثة 10")
+
+    def test_delete_asset_type_permanently(self):
+        t = self.AssetType.objects.create(name="نوع للاختبار فقط", code="TEST_DELETE_TYPE")
+        # GET shows confirmation
+        get_res = self.client.get(reverse("dashboard:asset-type-delete", args=[t.id]))
+        self.assertEqual(get_res.status_code, 200)
+        self.assertContains(get_res, "نوع للاختبار فقط")
+
+        # POST deletes it
+        post_res = self.client.post(reverse("dashboard:asset-type-delete", args=[t.id]), follow=True)
+        self.assertEqual(post_res.status_code, 200)
+        self.assertFalse(self.AssetType.objects.filter(id=t.id).exists())
+        self.assertContains(post_res, "تم حذف نوع الماكينة")
+
+        # Visiting asset-types page does NOT resurrect it
+        list_res = self.client.get(reverse("dashboard:asset-types"))
+        self.assertNotContains(list_res, "نوع للاختبار فقط")
+        self.assertFalse(self.AssetType.objects.filter(code="TEST_DELETE_TYPE").exists())
+
