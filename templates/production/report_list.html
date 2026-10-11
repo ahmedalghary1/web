@@ -76,6 +76,7 @@
           <td><strong>{{ rep.report_date }}</strong></td>
           {% if is_admin %}<td><span class="badge muted">{% icon "factory" %} {{ rep.factory.name }}</span></td>{% endif %}
           <td><b>{{ rep.get_shift_display }}</b></td>
+          <td>{{ rep.supervisor.display_name }}</td>
           <td>
             <strong>{{ rep.machine_entries.count }}</strong>
             {% with p_count=rep.changed_products_count o_count=rep.changed_operators_count %}
@@ -87,6 +88,11 @@
                 </div>
               {% endif %}
             {% endwith %}
+          </td>
+          <td>
+            {% for unit, quantity in rep.production_totals_by_unit %}
+              <div><strong>{{ quantity|floatformat:2 }}</strong> {{ unit }}</div>
+            {% empty %}—{% endfor %}
           </td>
           <td>
             {% with s_count=rep.stoppages.count %}

@@ -17,7 +17,9 @@
 <div class="stat-row">
   <article>
     <span>إجمالي الإنتاج الفعلي</span>
-    <strong>{{ total_weight }} <small style="font-size:16px;">كجم</small></strong>
+    {% for unit, quantity in report.production_totals_by_unit %}
+      <strong>{{ quantity|floatformat:2 }} <small style="font-size:16px;">{{ unit }}</small></strong>
+    {% empty %}<strong>—</strong>{% endfor %}
     <small>{{ entries.count }} ماكينة مسجلة بالتقرير</small>
   </article>
   <article>
@@ -59,7 +61,7 @@
   </article>
 </div>
 
-{% if report.status == 'PENDING_HANDOVER' %}
+{% if report.status == 'PENDING_HANDOVER' and report.completed_at_device %}
 <div class="panel" style="border:2px solid #f39c12; background:#fffcf2; padding:20px;">
   <h3 style="margin-top:0; color:#b7791f; display:flex; align-items:center; gap:8px;">
     {% icon "handshake" %} تأكيد استلام الوردية
@@ -109,9 +111,9 @@
           <th>المنتج</th>
           <th>عدد اللقم (أصلي / حالي)</th>
           <th>التشغيل</th>
-          <th>التبريد / الدورة</th>
+          <th>التبريد / الدورة (ثانية)</th>
           <th>الخامة</th>
-          <th>الوزن النهائي (كجم)</th>
+          <th>الإنتاج الفعلي</th>
           <th>المستهدف</th>
           <th>العبوة</th>
           <th>ملاحظات</th>
@@ -155,7 +157,7 @@
             {% endif %}
           </td>
           <td>
-            <span title="اللقم الأصلي من الداشبورد" style="color:var(--muted);">{{ entry.original_cavities }}</span>
+            <span title="اللقم الأصلية المسجلة في التقرير" style="color:var(--muted);">{{ entry.original_cavities }}</span>
             <span style="margin: 0 4px;">/</span>
             <strong title="اللقم الحالي مدخل يدوي" style="color:var(--primary); font-size:15px;">{{ entry.current_cavities }}</strong>
           </td>
@@ -170,6 +172,9 @@
             <span title="التبريد بالثواني">{{ entry.cooling_time_seconds }} ث</span>
             <span style="margin: 0 4px;">|</span>
             <strong title="الدورة بالثواني">{{ entry.cycle_time_seconds }} ث</strong>
+            {% if entry.original_cooling_time_seconds != entry.cooling_time_seconds or entry.original_cycle_time_seconds != entry.cycle_time_seconds %}
+              <small style="display:block; color:var(--muted); margin-top:4px;">الأصلي: تبريد {{ entry.original_cooling_time_seconds }} / دورة {{ entry.original_cycle_time_seconds }}</small>
+            {% endif %}
           </td>
           <td>{{ entry.raw_material|default:"-" }}</td>
           <td>
@@ -231,7 +236,7 @@
   </div>
   {% else %}
   <div style="padding:24px; text-align:center; color:var(--success); font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px;">
-    {% icon "check_circle" %} لا توجد أعطال أو توقفات مسجلة في هذه الوردية. الوردية عملت بانتظام تام!
+    {% icon "check_circle" %} لا توجد أعطال أو توقفات مسجلة في هذه الوردية.
   </div>
   {% endif %}
 </div>

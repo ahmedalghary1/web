@@ -1,3 +1,5 @@
+import math
+
 from rest_framework import status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -46,7 +48,7 @@ class ProductionBootstrapView(APIView):
             if matched:
                 factory = matched
 
-        if not factory:
+        if not factory and is_admin:
             factory = all_active_factories[0] if all_active_factories else None
 
         if not factory:
@@ -88,6 +90,7 @@ class ProductionBootstrapView(APIView):
             pending_handover = ProductionShiftReport.objects.filter(
                 factory=factory,
                 status=ProductionShiftReport.Status.PENDING_HANDOVER,
+                completed_at_device__isnull=False,
                 shift=prev_shift
             ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
 
@@ -96,6 +99,7 @@ class ProductionBootstrapView(APIView):
                 pending_handover = ProductionShiftReport.objects.filter(
                     factory=factory,
                     status=ProductionShiftReport.Status.PENDING_HANDOVER,
+                    completed_at_device__isnull=False,
                     handover_to_supervisor=user
                 ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
 
@@ -103,7 +107,8 @@ class ProductionBootstrapView(APIView):
             # Fallback for admin or general supervisors without a fixed shift
             pending_handover = ProductionShiftReport.objects.filter(
                 factory=factory,
-                status=ProductionShiftReport.Status.PENDING_HANDOVER
+                status=ProductionShiftReport.Status.PENDING_HANDOVER,
+                completed_at_device__isnull=False,
             ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
 
         # 6. Today's reports
@@ -162,16 +167,22 @@ class ProductionSyncReportView(APIView):
         if not getattr(user, "can_access_production", True):
             return Response({"detail": "ليس لديك صلاحية الوصول إلى نظام الإنتاج والأعطال."}, status=status.HTTP_403_FORBIDDEN)
 
-        factory = user.factory
-        if not factory and getattr(user, "is_admin", False):
-            factory = Factory.objects.filter(is_active=True).first()
-
-        if not factory:
-            return Response({"detail": "المستخدم غير مربوط بمصنع."}, status=status.HTTP_400_BAD_REQUEST)
-
         serializer = SyncShiftReportInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        factory = user.factory
+        requested_factory_id = data.get("factory_id")
+        if getattr(user, "is_admin", False):
+            if requested_factory_id is not None:
+                factory = Factory.objects.filter(pk=requested_factory_id, is_active=True).first()
+            elif not factory:
+                factory = Factory.objects.filter(is_active=True).first()
+        elif requested_factory_id is not None and (not factory or requested_factory_id != factory.pk):
+            return Response({"detail": "التقرير لا يتبع مصنع المستخدم."}, status=status.HTTP_403_FORBIDDEN)
+
+        if not factory:
+            return Response({"detail": "المستخدم غير مربوط بمصنع نشط."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             report_shift = data.get("shift", "FIRST")
@@ -191,6 +202,8 @@ class ProductionSyncReportView(APIView):
                 ).first()
 
             report = ProductionShiftReport.objects.filter(client_report_id=data["client_report_id"]).first()
+            if report and report.factory_id != factory.pk:
+                return Response({"detail": "التقرير لا يتبع المصنع المحدد."}, status=status.HTTP_403_FORBIDDEN)
             if not report:
                 report = ProductionShiftReport.objects.filter(
                     factory=factory,
@@ -198,7 +211,14 @@ class ProductionSyncReportView(APIView):
                     shift=report_shift
                 ).first()
                 if report:
-                    report.client_report_id = data["client_report_id"]
+                    return Response(
+                        {"detail": "يوجد تقرير مسجل لهذه الوردية. حدّث بيانات التطبيق لفتح التقرير الحالي.",
+                         "client_report_id": str(report.client_report_id)},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+            if report and report.status == ProductionShiftReport.Status.CONFIRMED:
+                return Response(ProductionShiftReportSerializer(report).data, status=status.HTTP_200_OK)
 
             if not report:
                 report = ProductionShiftReport(
@@ -232,10 +252,19 @@ class ProductionSyncReportView(APIView):
             # Process entries (Never delete existing entries if incoming list is empty)
             incoming_entries = data.get("entries", [])
             if incoming_entries:
+                existing_entries = {entry.asset_id: entry for entry in report.machine_entries.all()}
                 report.machine_entries.all().delete()
                 entries_to_create = []
+                seen_asset_ids = set()
                 for item in incoming_entries:
-                    asset = Asset.objects.filter(id=item["asset_id"], factory=factory).first()
+                    if item["asset_id"] in seen_asset_ids:
+                        raise serializers.ValidationError({"asset_id": "الماكينة مكررة في التقرير."})
+                    seen_asset_ids.add(item["asset_id"])
+                    asset = Asset.objects.filter(id=item["asset_id"], factory=factory).select_related(
+                        "production_default", "production_default__default_product", "production_default__default_operator",
+                        "production_default__default_raw_material", "production_default__default_final_unit",
+                        "production_default__target_cycle_unit", "production_default__default_packaging",
+                    ).first()
                     if not asset:
                         raise serializers.ValidationError({"asset_id": "الماكينة غير موجودة في المصنع المحدد."})
 
@@ -244,18 +273,25 @@ class ProductionSyncReportView(APIView):
                         if option_id is None:
                             return default
                         option = ProductionOption.objects.filter(
-                            pk=option_id, factory=factory, category=expected_category, is_active=True
+                            pk=option_id, factory=factory, category=expected_category
                         ).first()
                         if option is None:
-                            raise serializers.ValidationError({option_key: "الاختيار غير نشط أو لا يتبع المصنع."})
+                            raise serializers.ValidationError({option_key: "الاختيار لا يتبع المصنع أو نوعه غير صحيح."})
                         return option
 
                     # Detect if product was changed from default
                     default_cfg = getattr(asset, "production_default", None)
-                    if item.get("product_id") is not None and not Product.objects.filter(pk=item["product_id"], factory=factory, is_active=True).exists():
-                        raise serializers.ValidationError({"product_id": "المنتج غير نشط أو لا يتبع المصنع."})
-                    if item.get("operator_id") is not None and not MachineOperator.objects.filter(pk=item["operator_id"], factory=factory, is_active=True).exists():
-                        raise serializers.ValidationError({"operator_id": "العامل غير نشط أو لا يتبع المصنع."})
+                    existing_entry = existing_entries.get(asset.pk)
+                    for key, model in (("original_product_id", Product), ("original_operator_id", MachineOperator)):
+                        if item.get(key) is not None and not model.objects.filter(pk=item[key], factory=factory).exists():
+                            raise serializers.ValidationError({key: "القيمة الأصلية لا تتبع المصنع."})
+                    # A draft may have been entered while these choices were still
+                    # active. Bootstrap limits new selections; preserve snapshots
+                    # from offline clients as long as they belong to this factory.
+                    if item.get("product_id") is not None and not Product.objects.filter(pk=item["product_id"], factory=factory).exists():
+                        raise serializers.ValidationError({"product_id": "المنتج لا يتبع المصنع."})
+                    if item.get("operator_id") is not None and not MachineOperator.objects.filter(pk=item["operator_id"], factory=factory).exists():
+                        raise serializers.ValidationError({"operator_id": "العامل لا يتبع المصنع."})
                     default_prod_id = default_cfg.default_product_id if default_cfg else None
                     default_prod_name = default_cfg.default_product.name if (default_cfg and default_cfg.default_product) else ""
                     
@@ -297,16 +333,26 @@ class ProductionSyncReportView(APIView):
                     if op_changed and not orig_op_name:
                         orig_op_name = default_op_name or "الافتراضي غير محدد"
 
-                    actual_cooling = item.get("cooling_time_seconds")
-                    actual_cycle = item.get("cycle_time_seconds")
-                    actual_target = item.get("target_cycle_production")
+                    def snapshot(field, default):
+                        supplied = item.get(field)
+                        if supplied is not None:
+                            return supplied
+                        if existing_entry is not None:
+                            return getattr(existing_entry, field)
+                        return default
+
+                    original_cavities = snapshot("original_cavities", default_cfg.original_cavities if default_cfg else 1)
+                    original_cooling = snapshot("original_cooling_time_seconds", default_cfg.cooling_time_seconds if default_cfg else 0.0)
+                    original_cycle = snapshot("original_cycle_time_seconds", default_cfg.cycle_time_seconds if default_cfg else 0.0)
+                    actual_cooling = snapshot("cooling_time_seconds", original_cooling)
+                    actual_cycle = snapshot("cycle_time_seconds", original_cycle)
                     raw_material_option = selected_option(
                         "raw_material_option_id", ProductionOption.Category.RAW_MATERIAL,
                         default_cfg.default_raw_material if default_cfg else None,
                     )
                     final_unit = selected_option(
                         "final_production_unit_id", ProductionOption.Category.FINAL_UNIT,
-                        default_cfg.default_final_unit if default_cfg else None,
+                        existing_entry.final_production_unit if existing_entry and existing_entry.final_production_unit_id else (default_cfg.default_final_unit if default_cfg else None),
                     )
                     packaging_option = selected_option(
                         "packaging_option_id", ProductionOption.Category.PACKAGING,
@@ -331,8 +377,18 @@ class ProductionSyncReportView(APIView):
                             raise serializers.ValidationError({"final_production_unit_id": "أضف وحدة إنتاج فعلي من إعدادات الإنتاج أولاً."})
                         unit_name = final_unit.name
                         final_weight_kg = entered_quantity * final_unit.kg_per_unit if final_unit.kg_per_unit is not None else 0.0
-                    raw_material_value = raw_material_option.name if raw_material_option else item.get("raw_material", "")
-                    packaging_value = packaging_option.name if packaging_option else item.get("packaging_type", "")
+                        if not math.isfinite(final_weight_kg) or final_weight_kg < 0:
+                            raise serializers.ValidationError({"final_production_quantity": "الكمية أكبر من الحد المسموح أو معادلة تحويل الوحدة غير صحيحة."})
+                    raw_material_value = (
+                        raw_material_option.name if item.get("raw_material_option_id") is not None
+                        else item.get("raw_material") or (existing_entry.raw_material if existing_entry else "")
+                        or (raw_material_option.name if raw_material_option else "")
+                    )
+                    packaging_value = (
+                        packaging_option.name if item.get("packaging_option_id") is not None
+                        else item.get("packaging_type") or (existing_entry.packaging_type if existing_entry else "")
+                        or (packaging_option.name if packaging_option else "")
+                    )
                     fixed_target = default_cfg.target_cycle_production if default_cfg else 0.0
                     fixed_cycle_unit = default_cfg.target_cycle_unit.name if default_cfg and default_cfg.target_cycle_unit else ""
 
@@ -349,11 +405,13 @@ class ProductionSyncReportView(APIView):
                         original_product_id=orig_prod_id if prod_changed else None,
                         original_product_name=orig_prod_name if prod_changed else "",
                         product_changed=prod_changed,
-                        original_cavities=default_cfg.original_cavities if default_cfg else 1,
-                        current_cavities=item.get("current_cavities", 1),
+                        original_cavities=original_cavities,
+                        current_cavities=snapshot("current_cavities", original_cavities),
                         operation_mode=item.get("operation_mode", "AUTO"),
-                        cooling_time_seconds=actual_cooling if (actual_cooling is not None and actual_cooling > 0) else (default_cfg.cooling_time_seconds if default_cfg else 0.0),
-                        cycle_time_seconds=actual_cycle if (actual_cycle is not None and actual_cycle > 0) else (default_cfg.cycle_time_seconds if default_cfg else 0.0),
+                        original_cooling_time_seconds=original_cooling,
+                        original_cycle_time_seconds=original_cycle,
+                        cooling_time_seconds=actual_cooling,
+                        cycle_time_seconds=actual_cycle,
                         raw_material=raw_material_value,
                         final_production_weight_kg=final_weight_kg,
                         final_production_quantity=entered_quantity,
@@ -375,7 +433,9 @@ class ProductionSyncReportView(APIView):
                 stoppages_to_create = []
                 for stop in incoming_stoppages:
                     asset_id = stop.get("asset_id")
-                    asset = Asset.objects.filter(id=asset_id).first() if asset_id else None
+                    asset = Asset.objects.filter(id=asset_id, factory=factory).first() if asset_id else None
+                    if asset_id and asset is None:
+                        raise serializers.ValidationError({"asset_id": "ماكينة التوقف لا تتبع المصنع المحدد."})
                     stoppages_to_create.append(ProductionStoppage(
                         report=report,
                         asset=asset,
@@ -409,13 +469,16 @@ class ProductionConfirmHandoverView(APIView):
         data = serializer.validated_data
 
         query = {"client_report_id": data["client_report_id"]}
-        if not getattr(user, "is_admin", False) and user.factory:
+        if not getattr(user, "is_admin", False):
             query["factory"] = user.factory
 
         report = ProductionShiftReport.objects.filter(**query).first()
 
         if not report:
             return Response({"detail": "تقرير الوردية غير موجود."}, status=status.HTTP_404_NOT_FOUND)
+
+        if report.completed_at_device is None:
+            return Response({"detail": "الوردية لم تنته بعد. يجب إنهاؤها قبل تأكيد الاستلام."}, status=status.HTTP_400_BAD_REQUEST)
 
         report.status = ProductionShiftReport.Status.CONFIRMED
         report.handover_to_supervisor = request.user

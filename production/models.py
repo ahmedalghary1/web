@@ -128,6 +128,17 @@ class ProductionShiftReport(models.Model):
         return sum(entry.final_production_weight_kg for entry in self.machine_entries.all())
 
     @property
+    def production_totals_by_unit(self):
+        totals = {}
+        for entry in self.machine_entries.all():
+            unit = entry.final_production_unit_name or "كجم"
+            quantity = entry.final_production_quantity
+            if quantity == 0 and unit == "كجم" and entry.final_production_weight_kg > 0:
+                quantity = entry.final_production_weight_kg
+            totals[unit] = totals.get(unit, 0.0) + quantity
+        return sorted(totals.items())
+
+    @property
     def changed_products_count(self):
         return self.machine_entries.filter(product_changed=True).count()
 
@@ -165,7 +176,9 @@ class MachineProductionEntry(models.Model):
     # Operation Mode
     operation_mode = models.CharField("حالة التشغيل", max_length=10, choices=OperationMode.choices, default=OperationMode.AUTO)
     
-    # Times (Dashboard only)
+    # Report snapshots retain both the original settings and the actual values.
+    original_cooling_time_seconds = models.FloatField("التبريد الأصلي (ثانية)", default=0.0)
+    original_cycle_time_seconds = models.FloatField("الدورة الأصلية (ثانية)", default=0.0)
     cooling_time_seconds = models.FloatField("التبريد (ثانية)", default=0.0)
     cycle_time_seconds = models.FloatField("الدورة (ثانية)", default=0.0)
     

@@ -1,3 +1,5 @@
+import math
+
 from django import forms
 from .models import MachineProductionDefault, Product, MachineOperator, ProductionOption
 
@@ -39,6 +41,17 @@ class MachineProductionDefaultForm(forms.ModelForm):
             self.fields["default_final_unit"].queryset = ProductionOption.objects.filter(factory=factory, category=ProductionOption.Category.FINAL_UNIT, is_active=True)
             self.fields["target_cycle_unit"].queryset = ProductionOption.objects.filter(factory=factory, category=ProductionOption.Category.CYCLE_UNIT, is_active=True)
             self.fields["default_packaging"].queryset = ProductionOption.objects.filter(factory=factory, category=ProductionOption.Category.PACKAGING, is_active=True)
+
+    def clean(self):
+        cleaned = super().clean()
+        cavities = cleaned.get("original_cavities")
+        if cavities is not None and cavities < 1:
+            self.add_error("original_cavities", "أدخل عدد لقم لا يقل عن 1.")
+        for field in ("cooling_time_seconds", "cycle_time_seconds", "target_cycle_production"):
+            value = cleaned.get(field)
+            if value is not None and (not math.isfinite(value) or value < 0):
+                self.add_error(field, "أدخل قيمة صحيحة لا تقل عن صفر.")
+        return cleaned
 
 
 class ProductForm(forms.ModelForm):

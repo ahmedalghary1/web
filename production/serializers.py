@@ -1,3 +1,5 @@
+import math
+
 from rest_framework import serializers
 from assets.models import Asset
 from factories.models import Factory
@@ -137,6 +139,8 @@ class MachineProductionEntrySerializer(serializers.ModelSerializer):
             "original_cavities",
             "current_cavities",
             "operation_mode",
+            "original_cooling_time_seconds",
+            "original_cycle_time_seconds",
             "cooling_time_seconds",
             "cycle_time_seconds",
             "raw_material",
@@ -206,6 +210,20 @@ class ProductionShiftReportSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
+class NonNegativeFiniteFloatField(serializers.FloatField):
+    """Only quantities that can be stored and exported as real numbers."""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("min_value", 0)
+        super().__init__(**kwargs)
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        if not math.isfinite(value):
+            self.fail("invalid")
+        return value
+
+
 # Payload Serializer for incoming sync from mobile app
 class SyncMachineEntryInputSerializer(serializers.Serializer):
     asset_id = serializers.IntegerField()
@@ -219,18 +237,20 @@ class SyncMachineEntryInputSerializer(serializers.Serializer):
     original_product_id = serializers.IntegerField(required=False, allow_null=True)
     original_product_name = serializers.CharField(required=False, allow_blank=True, default="")
     product_changed = serializers.BooleanField(default=False)
-    original_cavities = serializers.IntegerField(default=1)
-    current_cavities = serializers.IntegerField(default=1, min_value=1)
+    original_cavities = serializers.IntegerField(required=False, min_value=1)
+    current_cavities = serializers.IntegerField(required=False, min_value=1)
     operation_mode = serializers.ChoiceField(choices=["AUTO", "MANUAL"], default="AUTO")
-    cooling_time_seconds = serializers.FloatField(default=0.0)
-    cycle_time_seconds = serializers.FloatField(default=0.0)
+    original_cooling_time_seconds = NonNegativeFiniteFloatField(required=False, allow_null=True)
+    original_cycle_time_seconds = NonNegativeFiniteFloatField(required=False, allow_null=True)
+    cooling_time_seconds = NonNegativeFiniteFloatField(required=False, allow_null=True)
+    cycle_time_seconds = NonNegativeFiniteFloatField(required=False, allow_null=True)
     raw_material = serializers.CharField(required=False, allow_blank=True, default="")
-    final_production_weight_kg = serializers.FloatField(default=0.0)
-    final_production_quantity = serializers.FloatField(required=False, allow_null=True, min_value=0)
+    final_production_weight_kg = NonNegativeFiniteFloatField(default=0.0)
+    final_production_quantity = NonNegativeFiniteFloatField(required=False, allow_null=True)
     final_production_unit_id = serializers.IntegerField(required=False, allow_null=True)
     raw_material_option_id = serializers.IntegerField(required=False, allow_null=True)
     packaging_option_id = serializers.IntegerField(required=False, allow_null=True)
-    target_cycle_production = serializers.FloatField(default=0.0)
+    target_cycle_production = NonNegativeFiniteFloatField(default=0.0)
     packaging_type = serializers.CharField(required=False, allow_blank=True, default="")
     notes = serializers.CharField(required=False, allow_blank=True, default="")
 
@@ -238,11 +258,12 @@ class SyncStoppageInputSerializer(serializers.Serializer):
     asset_id = serializers.IntegerField(required=False, allow_null=True)
     stoppage_type = serializers.CharField(default="MACHINE_BREAKDOWN")
     description = serializers.CharField()
-    duration_minutes = serializers.IntegerField(default=0)
+    duration_minutes = serializers.IntegerField(default=0, min_value=0)
     action_taken = serializers.CharField(required=False, allow_blank=True, default="")
 
 class SyncShiftReportInputSerializer(serializers.Serializer):
     client_report_id = serializers.UUIDField()
+    factory_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     shift = serializers.ChoiceField(choices=["FIRST", "SECOND", "THIRD"], default="FIRST")
     report_date = serializers.DateField()
     started_at_device = serializers.DateTimeField(required=False, allow_null=True)

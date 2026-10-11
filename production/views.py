@@ -116,7 +116,8 @@ def home(request):
     today_operator_changes = today_entries.filter(operator_changed=True).count()
 
     pending_handovers = reports_qs.filter(
-        status=ProductionShiftReport.Status.PENDING_HANDOVER
+        status=ProductionShiftReport.Status.PENDING_HANDOVER,
+        completed_at_device__isnull=False,
     ).select_related("supervisor", "factory").order_by("-created_at")[:5]
 
     recent_reports = reports_qs.select_related(
@@ -222,100 +223,29 @@ def report_detail(request, pk):
 @production_access_required
 def export_report_excel(request, pk):
     try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill
+        from .excel import build_report_workbook
     except ModuleNotFoundError:
         return HttpResponse(
-            "ميزة تصدير Excel تحتاج تثبيت openpyxl في بيئة الموقع ثم إعادة تشغيله.",
+            "???? ????? Excel ????? ????? openpyxl ?? ???? ?????? ?? ????? ??????.",
             status=503,
             content_type="text/plain; charset=utf-8",
         )
 
     factory, _, is_admin = get_active_factory_context(request)
-    reports = ProductionShiftReport.objects.select_related("factory", "supervisor")
+    reports = ProductionShiftReport.objects.select_related("factory", "supervisor", "handover_to_supervisor")
     if not is_admin:
         reports = reports.filter(factory=factory)
     report = get_object_or_404(reports, pk=pk)
     entries = report.machine_entries.select_related(
         "asset", "operator", "original_operator", "product", "original_product"
     ).order_by("asset__sequence_order", "asset__asset_code", "id")
-
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "تقرير الإنتاج"
-    sheet.sheet_view.rightToLeft = True
-    sheet.merge_cells("A1:M1")
-    sheet["A1"] = f"تقرير إنتاج {report.factory.name} — {report.get_shift_display()} — {report.report_date}"
-    sheet["A1"].font = Font(name="Arial", size=15, bold=True, color="FFFFFF")
-    sheet["A1"].fill = PatternFill("solid", fgColor="17365D")
-    sheet["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    sheet.row_dimensions[1].height = 30
-    sheet.merge_cells("A2:M2")
-    sheet["A2"] = f"المشرف: {report.supervisor.display_name}    |    الحالة: {report.get_status_display()}"
-    sheet["A2"].font = Font(name="Arial", size=11, color="334155")
-    sheet["A2"].alignment = Alignment(horizontal="right", vertical="center")
-
-    headers = [
-        "العامل", "الماكينة", "المنتج", "عدد اللقم الأصلي", "عدد اللقم الحالي",
-        "حالة التشغيل", "التبريد (ثانية)", "الدورة (ثانية)", "الخامة",
-        "نهائي بالكيلو", "الإنتاج حسب زمن الدورة", "العبوة", "الملاحظات",
-    ]
-    header_row = 4
-    for col, label in enumerate(headers, start=1):
-        cell = sheet.cell(row=header_row, column=col, value=label)
-        cell.font = Font(name="Arial", bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="256D85")
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    sheet.row_dimensions[header_row].height = 34
-
-    def safe_text(value):
-        value = str(value or "")
-        return "'" + value if value.startswith(("=", "+", "-", "@")) else value
-
-    for row_index, entry in enumerate(entries, start=header_row + 1):
-        amount_kg = entry.final_production_weight_kg
-        if entry.final_production_quantity > 0 and amount_kg == 0:
-            amount_kg = "غير محسوب"
-        values = [
-            entry.display_operator,
-            entry.asset.display_name,
-            entry.display_product,
-            entry.original_cavities,
-            entry.current_cavities,
-            entry.get_operation_mode_display(),
-            entry.cooling_time_seconds,
-            entry.cycle_time_seconds,
-            entry.raw_material,
-            amount_kg,
-            f"{entry.target_cycle_production:g} {entry.target_cycle_unit_name}".strip(),
-            entry.packaging_type,
-            entry.notes,
-        ]
-        for col, value in enumerate(values, start=1):
-            if isinstance(value, str):
-                value = safe_text(value)
-            cell = sheet.cell(row=row_index, column=col, value=value)
-            cell.alignment = Alignment(
-                horizontal="right" if col in (1, 2, 3, 9, 11, 12, 13) else "center",
-                vertical="top", wrap_text=True,
-            )
-            if col in (7, 8, 10) and isinstance(value, (int, float)):
-                cell.number_format = "0.##"
-        if row_index % 2:
-            for cell in sheet[row_index]:
-                cell.fill = PatternFill("solid", fgColor="F1F7FA")
-
-    widths = [22, 16, 24, 16, 16, 16, 16, 16, 20, 17, 25, 20, 36]
-    for col, width in enumerate(widths, start=1):
-        sheet.column_dimensions[chr(64 + col)].width = width
-    sheet.freeze_panes = "A5"
-    sheet.auto_filter.ref = f"A{header_row}:M{max(header_row, sheet.max_row)}"
-
+    stoppages = report.stoppages.select_related("asset").order_by("created_at", "id")
+    workbook = build_report_workbook(report, entries, stoppages)
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response["Content-Disposition"] = (
-        f'attachment; filename="production-report-{report.report_date}-{report.shift.lower()}.xlsx"'
+        f'attachment; filename="production-report-{report.pk}-{report.report_date}-{report.shift.lower()}.xlsx"'
     )
     workbook.save(response)
     return response
@@ -332,6 +262,10 @@ def confirm_handover(request, pk):
         report = get_object_or_404(qs, pk=pk, factory=factory)
     else:
         report = get_object_or_404(qs, pk=pk)
+
+    if report.completed_at_device is None:
+        messages.error(request, "الوردية لم تنته بعد. يجب إنهاؤها قبل تأكيد الاستلام.")
+        return redirect("production:report_detail", pk=pk)
 
     report.status = ProductionShiftReport.Status.CONFIRMED
     report.handover_to_supervisor = request.user
