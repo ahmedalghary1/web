@@ -226,7 +226,7 @@
             {% endif %}
           </td>
           <td><b>{{ st.get_stoppage_type_display }}</b></td>
-          <td style="white-space:normal; max-width:280px;">{{ st.description|default:"-" }}</td>
+          <td style="white-space:pre-wrap; max-width:280px;">{{ st.description|default:"-" }}</td>
           <td><strong style="color:var(--error);">{{ st.duration_minutes }} دقيقة</strong></td>
           <td style="white-space:normal; max-width:280px;">{{ st.action_taken|default:"-" }}</td>
         </tr>
@@ -239,5 +239,25 @@
     {% icon "check_circle" %} لا توجد أعطال أو توقفات مسجلة في هذه الوردية.
   </div>
   {% endif %}
+</div>
+<div class="card" style="margin-top:20px;padding:16px;">
+  <h3>مقارنة إعدادات الداشبورد بالقيم الفعلية</h3>
+  <p>الإعدادات الافتراضية محفوظة وقت التسجيل؛ القيم المعدلة مميزة داخل الجدول.</p>
+  {% for entry in entries %}
+    <h4>{{ entry.asset.asset_code }} — {{ entry.asset.production_title }}</h4>
+    {% if entry.default_comparison %}
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>البيان</th><th>الافتراضي وقت التسجيل</th><th>القيمة الفعلية</th><th>التغيير</th></tr></thead>
+        <tbody>{% for row in entry.default_comparison %}
+          <tr {% if row.changed %}style="background:var(--warning-light, #fff3cd);"{% endif %}>
+            <td>{{ row.label }}</td><td>{{ row.default|default_if_none:"—" }}</td><td>{{ row.actual|default_if_none:"—" }}</td>
+            <td>{% if row.changed %}معدّل{% else %}مطابق{% endif %}</td>
+          </tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}<p>تقرير سابق: لا تتوفر نسخة كاملة من الإعدادات الافتراضية وقت التسجيل.</p>{% endif %}
+  {% endfor %}
 </div>
 {% endblock %}

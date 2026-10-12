@@ -137,6 +137,7 @@ class MachineProductionEntrySerializer(serializers.ModelSerializer):
             "original_product_name",
             "product_changed",
             "original_cavities",
+            "dashboard_defaults",
             "current_cavities",
             "operation_mode",
             "original_cooling_time_seconds",
@@ -226,6 +227,23 @@ class NonNegativeFiniteFloatField(serializers.FloatField):
 
 # Payload Serializer for incoming sync from mobile app
 class SyncMachineEntryInputSerializer(serializers.Serializer):
+    dashboard_defaults = serializers.CharField(required=False, allow_blank=True, max_length=20000)
+
+    def validate_dashboard_defaults(self, value):
+        import json
+        if not value:
+            return value
+        try:
+            parsed = json.loads(value)
+        except (ValueError, TypeError):
+            raise serializers.ValidationError("Invalid defaults snapshot")
+        allowed = {"operator_name", "product_name", "original_cavities", "current_cavities",
+                   "cooling_time_seconds", "cycle_time_seconds", "raw_material", "packaging_type",
+                   "final_production_unit_name", "operation_mode", "target_cycle_production", "target_cycle_unit_name"}
+        if not isinstance(parsed, dict) or set(parsed) != allowed or any(not isinstance(v, str) or len(v) > 200 for v in parsed.values()):
+            raise serializers.ValidationError("Invalid defaults snapshot fields")
+        return value
+
     asset_id = serializers.IntegerField()
     operator_id = serializers.IntegerField(required=False, allow_null=True)
     operator_name = serializers.CharField(required=False, allow_blank=True, default="")

@@ -381,29 +381,46 @@ class ProductionSyncReportView(APIView):
                             raise serializers.ValidationError({"final_production_quantity": "الكمية أكبر من الحد المسموح أو معادلة تحويل الوحدة غير صحيحة."})
                     raw_material_value = (
                         raw_material_option.name if item.get("raw_material_option_id") is not None
-                        else item.get("raw_material") or (existing_entry.raw_material if existing_entry else "")
-                        or (raw_material_option.name if raw_material_option else "")
+                        else item.get("raw_material", existing_entry.raw_material if existing_entry else (raw_material_option.name if raw_material_option else ""))
                     )
                     packaging_value = (
                         packaging_option.name if item.get("packaging_option_id") is not None
-                        else item.get("packaging_type") or (existing_entry.packaging_type if existing_entry else "")
-                        or (packaging_option.name if packaging_option else "")
+                        else item.get("packaging_type", existing_entry.packaging_type if existing_entry else (packaging_option.name if packaging_option else ""))
                     )
+                    if not item.get("dashboard_defaults") and not (existing_entry and existing_entry.dashboard_defaults):
+                        raw_material_value = raw_material_value or (existing_entry.raw_material if existing_entry else "") or (raw_material_option.name if raw_material_option else "")
+                        packaging_value = packaging_value or (existing_entry.packaging_type if existing_entry else "") or (packaging_option.name if packaging_option else "")
                     fixed_target = default_cfg.target_cycle_production if default_cfg else 0.0
                     fixed_cycle_unit = default_cfg.target_cycle_unit.name if default_cfg and default_cfg.target_cycle_unit else ""
+
+                    dashboard_defaults = (existing_entry.dashboard_defaults if existing_entry and existing_entry.dashboard_defaults
+                                          else item.get("dashboard_defaults", ""))
+                    if dashboard_defaults:
+                        import json
+                        baseline = json.loads(dashboard_defaults)
+                        orig_prod_name = baseline["product_name"]
+                        orig_op_name = baseline["operator_name"]
+                        prod_changed = selected_prod_name.strip() != orig_prod_name.strip()
+                        op_changed = selected_op_name.strip() != orig_op_name.strip()
+                        if existing_entry:
+                            orig_prod_id = existing_entry.original_product_id
+                            orig_op_id = existing_entry.original_operator_id
+                            fixed_target = existing_entry.target_cycle_production
+                            fixed_cycle_unit = existing_entry.target_cycle_unit_name
 
                     entries_to_create.append(MachineProductionEntry(
                         report=report,
                         asset=asset,
+                        dashboard_defaults=dashboard_defaults,
                         operator_id=selected_op_id,
                         operator_name=selected_op_name,
-                        original_operator_id=orig_op_id if op_changed else None,
-                        original_operator_name=orig_op_name if op_changed else "",
+                        original_operator_id=orig_op_id,
+                        original_operator_name=orig_op_name,
                         operator_changed=op_changed,
                         product_id=selected_prod_id,
                         product_name=selected_prod_name,
-                        original_product_id=orig_prod_id if prod_changed else None,
-                        original_product_name=orig_prod_name if prod_changed else "",
+                        original_product_id=orig_prod_id,
+                        original_product_name=orig_prod_name,
                         product_changed=prod_changed,
                         original_cavities=original_cavities,
                         current_cavities=snapshot("current_cavities", original_cavities),

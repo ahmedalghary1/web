@@ -79,6 +79,57 @@ class ProductionAPITestCase(TestCase):
             target_cycle_production=650.0,
         )
 
+    def test_table_snapshot_and_free_text_faults_survive_resync(self):
+        import json
+        self.client.force_authenticate(user=self.supervisor1)
+        defaults = {
+            "operator_name": "", "product_name": self.prod_default.name,
+            "original_cavities": "4", "current_cavities": "4",
+            "cooling_time_seconds": "12.5", "cycle_time_seconds": "22.0",
+            "raw_material": "خامة افتراضية", "packaging_type": "كرتون",
+            "final_production_unit_name": "كجم", "operation_mode": "AUTO",
+            "target_cycle_production": "650.0", "target_cycle_unit_name": "",
+        }
+        payload = {
+            "client_report_id": str(uuid.uuid4()), "report_date": timezone.localdate().isoformat(),
+            "shift": "FIRST", "status": "DRAFT",
+            "entries": [{"asset_id": self.asset1.pk, "product_name": "منتج مكتوب يدويًا",
+                         "operator_name": "عامل جديد", "raw_material": "", "packaging_type": "",
+                         "final_production_weight_kg": 12,
+                         "dashboard_defaults": json.dumps(defaults, ensure_ascii=False)}],
+            "stoppages": [{"stoppage_type": "OTHER", "description": "عطل أول\nعطل ثان", "duration_minutes": 0}],
+        }
+        url = "/api/v1/production/sync/shift-reports/"
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        entry = MachineProductionEntry.objects.get()
+        self.assertEqual(entry.raw_material, "")
+        self.assertEqual(entry.packaging_type, "")
+        self.assertTrue(entry.product_changed)
+        self.assertEqual(entry.original_product_name, self.prod_default.name)
+        self.machine_default.default_product = self.prod_alternative
+        self.machine_default.save()
+        payload["entries"][0]["product_name"] = self.prod_default.name
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        entry = MachineProductionEntry.objects.get()
+        self.assertFalse(entry.product_changed)
+        self.assertEqual(json.loads(entry.dashboard_defaults), defaults)
+        self.assertEqual(ProductionStoppage.objects.count(), 1)
+        self.assertEqual(ProductionStoppage.objects.get().description, "عطل أول\nعطل ثان")
+        self.assertTrue(any(row["changed"] for row in entry.default_comparison))
+        self.client.force_login(self.supervisor1)
+        report = self.client.get(reverse("production:report_detail", args=[entry.report_id]))
+        self.assertEqual(report.status_code, 200)
+        self.assertContains(report, "الافتراضي وقت التسجيل")
+        self.assertContains(report, "عامل جديد")
+
+    def test_table_rejects_invalid_snapshot(self):
+        from production.serializers import SyncMachineEntryInputSerializer
+        for value in ["[]", "null", '{"operator_name": []}', "invalid"]:
+            serializer = SyncMachineEntryInputSerializer(data={"asset_id": self.asset1.pk, "dashboard_defaults": value})
+            self.assertFalse(serializer.is_valid(), value)
+
     def test_bootstrap_endpoint(self):
         self.client.force_authenticate(user=self.supervisor1)
         res = self.client.get("/api/v1/production/bootstrap/")

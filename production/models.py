@@ -169,6 +169,8 @@ class MachineProductionEntry(models.Model):
     original_product_name = models.CharField("المنتج قبل التغيير", max_length=150, blank=True, default="")
     product_changed = models.BooleanField("تم تغيير المنتج", default=False)
     
+    dashboard_defaults = models.TextField("إعدادات الداشبورد وقت التسجيل", blank=True, default="")
+
     # Cavities
     original_cavities = models.PositiveIntegerField("عدد اللقم الأصلي", default=1)
     current_cavities = models.PositiveIntegerField("عدد اللقم الحالية", default=1)
@@ -216,6 +218,40 @@ class MachineProductionEntry(models.Model):
         if self.product_id and self.product:
             return self.product.name
         return "-"
+
+    @property
+    def default_comparison(self):
+        import json
+        try:
+            defaults = json.loads(self.dashboard_defaults or "{}")
+        except (ValueError, TypeError):
+            defaults = {}
+        labels = {
+            "operator_name": "العامل", "product_name": "المنتج",
+            "original_cavities": "اللقم الأصلية", "current_cavities": "اللقم الحالية",
+            "cooling_time_seconds": "التبريد (ث)", "cycle_time_seconds": "الدورة (ث)",
+            "raw_material": "الخامة", "packaging_type": "العبوة",
+            "operation_mode": "التشغيل", "final_production_unit_name": "وحدة الإنتاج",
+            "target_cycle_production": "المستهدف", "target_cycle_unit_name": "وحدة المستهدف",
+        }
+        rows = []
+        for field, label in labels.items():
+            actual = getattr(self, field)
+            baseline = defaults.get(field)
+            if baseline is None:
+                # Do not invent historical settings from today's dashboard.
+                continue
+            changed = str(actual) != str(baseline)
+            if isinstance(actual, (int, float)):
+                try:
+                    changed = float(actual) != float(baseline)
+                except (ValueError, TypeError):
+                    pass
+            if field == "operation_mode":
+                actual = dict(self.OperationMode.choices).get(actual, actual)
+                baseline = dict(self.OperationMode.choices).get(baseline, baseline)
+            rows.append({"label": label, "default": baseline, "actual": actual, "changed": changed})
+        return rows
 
 
 class ProductionStoppage(models.Model):
