@@ -1,19 +1,187 @@
 {% extends "base.html" %}
-{% block title %}ترتيب تسليم المشرفين{% endblock %}
+{% load icons %}
+{% block title %}ترتيب تسليم المشرفين | إدارة الإنتاج{% endblock %}
+
 {% block content %}
-<div class="page-title"><h1>ترتيب تسليم المشرفين</h1><a class="btn ghost" href="{% url 'production:home' %}">العودة للإنتاج</a></div>
-<div class="panel">
-  <p>اختر المصنع ثم حدد كل مشرف والمشرف الذي يستلم منه. لتكوين دورة مستمرة: أحمد ← محمود، محمود ← علي، علي ← أحمد.</p>
-  {% for f in factories %}<a class="btn {% if factory.id == f.id %}primary{% else %}ghost{% endif %}" href="?factory={{ f.id }}">{{ f.name }}</a> {% endfor %}
+<div class="toolbar" style="margin-bottom:20px;">
+  <div class="page-title">
+    <h1 style="display:flex; align-items:center; gap:10px;">
+      {% icon "handshake" %} ترتيب ودورة تسليم المشرفين
+    </h1>
+    <p style="color:var(--muted); margin:4px 0 0;">
+      تحديد المشرف المستلم لكل مشرف في المصنع لإدارة دورة تسليم تقارير الإنتاج والأعطال اليومية.
+    </p>
+  </div>
+  <a class="btn ghost" href="{% url 'production:home' %}">
+    {% icon "arrow-right" %} العودة للوحة الإنتاج
+  </a>
 </div>
+
+<!-- Workflow Explanation Banner -->
+<div class="panel" style="background:linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%); border-right:4px solid var(--primary); padding:16px 20px; margin-bottom:24px; border-radius:8px;">
+  <h3 style="margin:0 0 8px; font-size:15px; color:#1e293b; display:flex; align-items:center; gap:8px;">
+    {% icon "info" %} آلية عمل دورة تسليم التقارير بين المشرفين:
+  </h3>
+  <ol style="margin:0; padding-right:20px; color:#475569; font-size:13.5px; line-height:1.7;">
+    <li>يقوم المشرف بتسجيل بيانات الإنتاج والأعطال لورديته، وعند إنهائها يضغط <strong>تسليم الوردية</strong>.</li>
+    <li>التطبيق يوجه التقرير تلقائياً إلى <strong>المشرف المستلم</strong> المحدد له في هذا الجدول أدناه.</li>
+    <li>عند فتح المشرف المستلم لتطبيق الهاتف، يظهر له <strong>تقرير المشرف السابق كاملاً للعرض فقط</strong> (دون إمكانية تعديل) مع خيارين:
+      <span style="color:#16a34a; font-weight:700;">الموافقة</span> أو 
+      <span style="color:#dc2626; font-weight:700;">غير مقبول</span> (مع اشتراط كتابة سبب عدم القبول إجبارياً).
+    </li>
+    <li>بعد تسجيل الموافقة أو عدم القبول، يُفتح للمشرف كتابة تقريره اليومي كالمعتاد، وعند تسليمه ينتقل للمشرف التالي في الدورة.</li>
+  </ol>
+</div>
+
+{% if is_admin and factories|length > 1 %}
+<div class="panel" style="padding:14px 20px; margin-bottom:20px;">
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <strong style="color:var(--muted); font-size:13px;">اختيار المصنع:</strong>
+    {% for f in factories %}
+      <a class="btn small {% if factory.id == f.id %}primary{% else %}ghost{% endif %}" href="?factory={{ f.id }}">
+        {% icon "factory" %} {{ f.name }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if factory %}
-<div class="panel"><h2>{{ factory.name }}</h2>
-  <p>اختيار مشرف مسجل مسبقًا يغيّر المستلم الخاص به، ويحوّل التقارير التي لم تُراجع إلى المستلم الجديد. القرارات المسجلة تظل محفوظة.</p>
-  <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn primary">حفظ ترتيب التسليم</button></form>
+<div style="display:grid; grid-template-columns:1fr 1.3fr; gap:20px; align-items:start;">
+  <!-- Route Assignment Form -->
+  <div class="panel" style="padding:22px; border-radius:10px;">
+    <h2 style="margin:0 0 16px; font-size:17px; display:flex; align-items:center; gap:8px;">
+      {% icon "plus" %} تعيين أو تعديل مستلم لمشرف ({{ factory.name }})
+    </h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 18px;">
+      اختر المشرف المسلّم وحدد من يستلم منه. إذا كان المشرف مسجلاً مسبقاً، فسيتم تحديث المستلم الخاص به وتحويل أي تقارير معلقة لم تُراجع بعد إلى المستلم الجديد.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div style="background:#fee2e2; border:1px solid #f87171; color:#991b1b; padding:10px 14px; border-radius:6px; margin-bottom:14px; font-size:13px;">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div style="margin-bottom:14px;">
+        <label for="{{ form.supervisor.id_for_label }}" style="display:block; font-weight:700; margin-bottom:6px; font-size:13.5px;">
+          {{ form.supervisor.label }}:
+        </label>
+        {{ form.supervisor }}
+        {% if form.supervisor.errors %}
+          <div style="color:#dc2626; font-size:12px; margin-top:4px;">{{ form.supervisor.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label for="{{ form.receiver.id_for_label }}" style="display:block; font-weight:700; margin-bottom:6px; font-size:13.5px;">
+          {{ form.receiver.label }}:
+        </label>
+        {{ form.receiver }}
+        {% if form.receiver.errors %}
+          <div style="color:#dc2626; font-size:12px; margin-top:4px;">{{ form.receiver.errors }}</div>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn primary" style="width:100%; padding:10px; font-size:14px; justify-content:center;">
+        {% icon "check" %} حفظ ترتيب التسليم
+      </button>
+    </form>
+  </div>
+
+  <!-- Routes Overview & Table -->
+  <div>
+    {% if routes %}
+    <div class="panel" style="padding:16px 20px; margin-bottom:16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;">
+      <h3 style="margin:0 0 10px; font-size:14px; color:#166534; display:flex; align-items:center; gap:6px;">
+        {% icon "repeat" %} مسار دورة التسليم الحالي بالمصنع:
+      </h3>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px;">
+        {% for route in routes %}
+          <span style="background:#ffffff; border:1px solid #86efac; color:#14532d; padding:4px 10px; border-radius:20px; font-weight:600;">
+            {{ route.supervisor.display_name }}
+          </span>
+          <span style="color:#16a34a; font-weight:bold;">➔</span>
+          {% if forloop.last %}
+            <span style="background:#ffffff; border:1px solid #86efac; color:#14532d; padding:4px 10px; border-radius:20px; font-weight:600;">
+              {{ route.receiver.display_name }}
+            </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="panel" style="padding:20px; border-radius:10px;">
+      <div class="panel-title" style="margin-bottom:14px;">
+        <h2 style="font-size:16px; margin:0;">
+          جدول تسليم المشرفين بالمصنع ({{ routes|length }})
+        </h2>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>المشرف المسلّم</th>
+              <th style="text-align:center;">التوجيه</th>
+              <th>المشرف المستلم</th>
+              <th style="text-align:center;">إجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for route in routes %}
+            <tr>
+              <td>
+                <strong>{{ route.supervisor.display_name }}</strong>
+                {% if route.supervisor.shift %}
+                  <div style="font-size:11px; color:var(--muted);">{{ route.supervisor.get_shift_display }}</div>
+                {% endif %}
+                <small style="color:#64748b; font-size:11px; display:block;">{{ route.supervisor.phone }}</small>
+              </td>
+              <td style="text-align:center; color:var(--primary); font-weight:bold; font-size:16px;">
+                ➔
+              </td>
+              <td>
+                <strong>{{ route.receiver.display_name }}</strong>
+                {% if not route.receiver.is_active %}
+                  <span class="badge danger" style="font-size:10px; padding:1px 5px;">غير نشط</span>
+                {% endif %}
+                {% if route.receiver.shift %}
+                  <div style="font-size:11px; color:var(--muted);">{{ route.receiver.get_shift_display }}</div>
+                {% endif %}
+                <small style="color:#64748b; font-size:11px; display:block;">{{ route.receiver.phone }}</small>
+              </td>
+              <td style="text-align:center;">
+                <form method="post" style="display:inline;" onsubmit="return confirm('هل أنت متأكد من حذف ترتيب التسليم للمشرف {{ route.supervisor.display_name }}؟');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="route_id" value="{{ route.id }}">
+                  <button type="submit" class="btn small ghost" style="color:#dc2626; border-color:#fca5a5;" title="حذف هذا الترتيب">
+                    {% icon "trash" %} حذف
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" style="text-align:center; padding:30px; color:var(--muted);">
+                لم يتم تحديد ترتيب التسليم لأي مشرف في مصنع {{ factory.name }} بعد.<br>
+                استخدم النموذج الجانبي لتحديد المشرفين.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
-<div class="panel"><table><thead><tr><th>المشرف المسلّم</th><th>المشرف المستلم</th></tr></thead><tbody>
-{% for route in routes %}<tr><td>{{ route.supervisor.display_name }}</td><td>{{ route.receiver.display_name }}{% if not route.receiver.is_active %} (غير نشط){% endif %}</td></tr>
-{% empty %}<tr><td colspan="2">لم يتم تحديد ترتيب التسليم لهذا المصنع.</td></tr>{% endfor %}
-</tbody></table></div>
-{% else %}<div class="panel">اختر مصنعًا لإعداد المشرفين.</div>{% endif %}
+{% else %}
+<div class="panel" style="padding:30px; text-align:center;">
+  <p style="color:var(--muted); margin:0;">اختر مصنعاً من الأعلى لإعداد ترتيب المشرفين.</p>
+</div>
+{% endif %}
 {% endblock %}

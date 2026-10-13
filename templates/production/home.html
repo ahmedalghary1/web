@@ -14,8 +14,14 @@
   <div class="date">{% icon "calendar" %} {{ today|date:"l، d F Y" }}</div>
 </div>
 
+{% if is_admin or user.role == 'GENERAL_SUPERVISOR' %}
+<div style="margin-bottom:16px;">
+  <a class="btn primary" href="{% url 'production:handover_routes' %}">
+    {% icon "handshake" %} ترتيب تسليم المشرفين
+  </a>
+</div>
+{% endif %}
 {% if is_admin %}
-<a class="btn primary" href="{% url 'production:handover_routes' %}">ترتيب تسليم المشرفين</a>
 <div class="factory-switch-pills" style="margin-bottom:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
   <span style="font-weight:700; color:var(--muted); font-size:13px; margin-left:4px;">تصفية المصنع:</span>
   <a href="?factory=all" class="btn small {% if not factory %}primary{% else %}ghost{% endif %}">{% icon "globe" %} كافة المصانع</a>
@@ -162,7 +168,11 @@
           <td>
             {% if rep.status == 'CONFIRMED' %}
               <span class="badge success">{% icon "check" %} تم التأكيد والاستلام</span>
-            {% elif rep.status == 'REJECTED' %}<span class="badge warning">غير مقبول</span>
+            {% elif rep.status == 'REJECTED' %}
+              <span class="badge danger" style="background:#fee2e2; color:#991b1b; border:1px solid #f87171;">{% icon "x" %} غير مقبول</span>
+              {% if rep.handover_notes %}
+                <div style="font-size:11px; color:#b91c1c; margin-top:3px; max-width:220px;" title="{{ rep.handover_notes }}">السبب: <strong>{{ rep.handover_notes|truncatechars:35 }}</strong></div>
+              {% endif %}
             {% elif rep.status == 'PENDING_HANDOVER' %}
               <span class="badge warning">{% icon "clock" %} بانتظار الاستلام</span>
             {% else %}

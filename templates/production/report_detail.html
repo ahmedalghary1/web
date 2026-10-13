@@ -80,17 +80,32 @@
   </p>
   <form method="post" action="{% url 'production:confirm-handover' report.id %}" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
     {% csrf_token %}
-    <input type="text" name="handover_notes" placeholder="الملاحظات / سبب عدم القبول (إلزامي عند الرفض)" style="flex:1; min-width:280px;">
+    <input type="text" id="handover_notes_input" name="handover_notes" placeholder="الملاحظات / سبب عدم القبول (إلزامي عند الرفض)" style="flex:1; min-width:280px; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px;">
     <button type="submit" name="decision" value="ACCEPT" class="btn primary" style="background:#27ae60;">{% icon "check" %} الموافقة</button>
-    <button type="submit" name="decision" value="REJECT" class="btn ghost">غير مقبول</button>
+    <button type="submit" name="decision" value="REJECT" class="btn ghost" style="color:#dc2626; border-color:#fca5a5;" onclick="var n=document.getElementById('handover_notes_input'); if(!n.value.trim()){ alert('يجب كتابة سبب عدم القبول أولاً'); n.focus(); return false; }">{% icon "x" %} غير مقبول</button>
   </form>
 </div>
 {% endif %}
 
-{% if report.handover_notes %}
-<div class="panel" style="background:#f4fbf7; border:1px solid #b7e4c7;">
-  <h4 style="margin:0 0 6px; color:#1b4332;">{{ report.get_status_display }} — الملاحظات / سبب عدم القبول:</h4>
-  <p style="margin:0; color:#2d6a4f;">{{ report.handover_notes }}</p>
+{% if report.status == 'REJECTED' and report.handover_notes %}
+<div class="panel" style="background:#fef2f2; border:2px solid #ef4444; border-radius:8px; padding:16px;">
+  <h4 style="margin:0 0 6px; color:#991b1b; display:flex; align-items:center; gap:6px;">
+    {% icon "x" %} تقرير غير مقبول — سبب عدم القبول:
+  </h4>
+  <p style="margin:0; color:#b91c1c; font-size:15px; font-weight:600;">{{ report.handover_notes }}</p>
+  {% if report.handover_confirmed_at %}
+    <small style="color:#7f1d1d; display:block; margin-top:6px;">بواسطة المشرف المستلم: {{ report.handover_to_supervisor.display_name|default:"المشرف المستلم" }} في: {{ report.handover_confirmed_at|date:"Y-m-d H:i" }}</small>
+  {% endif %}
+</div>
+{% elif report.handover_notes %}
+<div class="panel" style="background:#f4fbf7; border:1px solid #b7e4c7; border-radius:8px; padding:16px;">
+  <h4 style="margin:0 0 6px; color:#1b4332; display:flex; align-items:center; gap:6px;">
+    {% icon "check" %} {{ report.get_status_display }} — ملاحظات الاستلام:
+  </h4>
+  <p style="margin:0; color:#2d6a4f; font-size:15px;">{{ report.handover_notes }}</p>
+  {% if report.handover_confirmed_at %}
+    <small style="color:#14532d; display:block; margin-top:6px;">بواسطة المشرف المستلم: {{ report.handover_to_supervisor.display_name|default:"المشرف المستلم" }} في: {{ report.handover_confirmed_at|date:"Y-m-d H:i" }}</small>
+  {% endif %}
 </div>
 {% endif %}
 

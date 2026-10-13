@@ -9,13 +9,24 @@ class SupervisorHandoverRouteForm(forms.ModelForm):
         from .models import SupervisorHandoverRoute
         model = SupervisorHandoverRoute
         fields = ["supervisor", "receiver"]
+        labels = {
+            "supervisor": "المشرف المسلّم (الذي سينهي تقريره)",
+            "receiver": "المشرف المستلم (الذي سيراجع ويعتمد التقرير)",
+        }
+        widgets = {
+            "supervisor": forms.Select(attrs={"class": "form-control", "style": "width:100%; max-width:420px; padding:8px 12px; border-radius:6px; border:1px solid #ccc;"}),
+            "receiver": forms.Select(attrs={"class": "form-control", "style": "width:100%; max-width:420px; padding:8px 12px; border-radius:6px; border:1px solid #ccc;"}),
+        }
 
     def __init__(self, *args, factory=None, **kwargs):
         super().__init__(*args, **kwargs)
         from accounts.models import User
-        supervisors = User.objects.filter(factory=factory, is_active=True, role__in=["PRODUCTION_SUPERVISOR", "GENERAL_SUPERVISOR"]).order_by("name", "phone")
+        supervisors = User.objects.filter(
+            factory=factory, is_active=True, role__in=["PRODUCTION_SUPERVISOR", "GENERAL_SUPERVISOR"]
+        ).order_by("name", "phone")
         for field in self.fields.values():
             field.queryset = supervisors
+            field.label_from_instance = lambda u: f"{u.display_name} ({u.get_shift_display() if u.shift else 'بدون وردية'}) - {u.phone}"
 
 class MachineProductionDefaultForm(forms.ModelForm):
     class Meta:

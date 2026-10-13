@@ -7,6 +7,7 @@ from django.db.models import Sum, Count, Q
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_POST
 from django.http import HttpResponse
+from django.urls import reverse
 
 
 from assets.models import Asset
@@ -85,8 +86,24 @@ def handover_routes(request):
     from .forms import SupervisorHandoverRouteForm
     from django.db import transaction
     factory, factories, is_admin = get_active_factory_context(request)
-    if not is_admin:
-        return HttpResponse("إعداد التسليم متاح لمسؤول النظام فقط.", status=403)
+    can_manage = is_admin or request.user.role == "GENERAL_SUPERVISOR"
+    if not can_manage:
+        return HttpResponse("إعداد التسليم متاح لمسؤول النظام أو المشرف العام للمصنع فقط.", status=403)
+    if not is_admin and request.user.role == "GENERAL_SUPERVISOR":
+        factory = getattr(request.user, "factory", None)
+        factories = [factory] if factory else []
+
+    if request.method == "POST" and factory and request.POST.get("action") == "delete":
+        route_id = request.POST.get("route_id")
+        if route_id and route_id.isdigit():
+            deleted_count, _ = SupervisorHandoverRoute.objects.filter(pk=int(route_id), supervisor__factory=factory).delete()
+            if deleted_count:
+                messages.success(request, "تم حذف ترتيب التسليم بنجاح.")
+            else:
+                messages.error(request, "لم يتم العثور على الترتيب المطلوب أو لا يتبع هذا المصنع.")
+        redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin and factory else "")
+        return redirect(redirect_url)
+
     instance = None
     if request.method == "POST" and factory and request.POST.get("supervisor", "").isdigit():
         instance = SupervisorHandoverRoute.objects.filter(supervisor_id=request.POST.get("supervisor") or None, supervisor__factory=factory).first()
@@ -97,10 +114,17 @@ def handover_routes(request):
             route = form.save()
             # Explicit dashboard changes also redirect outstanding reviews.
             ProductionShiftReport.objects.filter(factory=factory, supervisor=route.supervisor, status="PENDING_HANDOVER", completed_at_device__isnull=False).update(handover_to_supervisor=route.receiver)
-        messages.success(request, "تم حفظ المشرف المستلم وتوجيه التقارير المنتظرة إليه.")
-        return redirect("production:handover_routes")
+        messages.success(request, f"تم حفظ ترتيب التسليم: {route.supervisor.display_name} يسلم إلى {route.receiver.display_name}.")
+        redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin and factory else "")
+        return redirect(redirect_url)
     routes = SupervisorHandoverRoute.objects.filter(supervisor__factory=factory).select_related("supervisor", "receiver") if factory else []
-    return render(request, "production/handover_routes.html", {"form": form, "routes": routes, "factory": factory, "factories": factories})
+    return render(request, "production/handover_routes.html", {
+        "form": form,
+        "routes": routes,
+        "factory": factory,
+        "factories": factories,
+        "is_admin": is_admin,
+    })
 
 
 @production_access_required

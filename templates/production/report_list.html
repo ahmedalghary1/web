@@ -106,7 +106,11 @@
           <td>
             {% if rep.status == 'CONFIRMED' %}
               <span class="badge success">{% icon "check" %} مؤكد ومستلم</span>
-            {% elif rep.status == 'REJECTED' %}<span class="badge warning">غير مقبول</span>
+            {% elif rep.status == 'REJECTED' %}
+              <span class="badge danger" style="background:#fee2e2; color:#991b1b; border:1px solid #f87171;">{% icon "x" %} غير مقبول</span>
+              {% if rep.handover_notes %}
+                <div style="font-size:11px; color:#b91c1c; margin-top:3px; max-width:200px;" title="{{ rep.handover_notes }}">السبب: <strong>{{ rep.handover_notes|truncatechars:30 }}</strong></div>
+              {% endif %}
             {% elif rep.status == 'PENDING_HANDOVER' %}
               <span class="badge warning">{% icon "clock" %} بانتظار الاستلام</span>
             {% else %}
