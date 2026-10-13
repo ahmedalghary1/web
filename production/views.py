@@ -80,6 +80,30 @@ def get_active_factory_context(request):
 
 
 @production_access_required
+def handover_routes(request):
+    from .models import SupervisorHandoverRoute
+    from .forms import SupervisorHandoverRouteForm
+    from django.db import transaction
+    factory, factories, is_admin = get_active_factory_context(request)
+    if not is_admin:
+        return HttpResponse("إعداد التسليم متاح لمسؤول النظام فقط.", status=403)
+    instance = None
+    if request.method == "POST" and factory and request.POST.get("supervisor", "").isdigit():
+        instance = SupervisorHandoverRoute.objects.filter(supervisor_id=request.POST.get("supervisor") or None, supervisor__factory=factory).first()
+    form = SupervisorHandoverRouteForm(request.POST or None, instance=instance, factory=factory)
+    if request.method == "POST" and factory and form.is_valid():
+        with transaction.atomic():
+            Factory.objects.select_for_update().get(pk=factory.pk)
+            route = form.save()
+            # Explicit dashboard changes also redirect outstanding reviews.
+            ProductionShiftReport.objects.filter(factory=factory, supervisor=route.supervisor, status="PENDING_HANDOVER", completed_at_device__isnull=False).update(handover_to_supervisor=route.receiver)
+        messages.success(request, "تم حفظ المشرف المستلم وتوجيه التقارير المنتظرة إليه.")
+        return redirect("production:handover_routes")
+    routes = SupervisorHandoverRoute.objects.filter(supervisor__factory=factory).select_related("supervisor", "receiver") if factory else []
+    return render(request, "production/handover_routes.html", {"form": form, "routes": routes, "factory": factory, "factories": factories})
+
+
+@production_access_required
 def home(request):
     factory, factories, is_admin = get_active_factory_context(request)
     if not is_admin and not factory:
@@ -263,19 +287,13 @@ def confirm_handover(request, pk):
     else:
         report = get_object_or_404(qs, pk=pk)
 
-    if report.completed_at_device is None:
-        messages.error(request, "الوردية لم تنته بعد. يجب إنهاؤها قبل تأكيد الاستلام.")
-        return redirect("production:report_detail", pk=pk)
-
-    report.status = ProductionShiftReport.Status.CONFIRMED
-    report.handover_to_supervisor = request.user
-    report.handover_confirmed_at = timezone.now()
-    notes = request.POST.get("handover_notes", "").strip()
-    if notes:
-        report.handover_notes = notes
-    report.save()
-
-    messages.success(request, f"تم تأكيد استلام الوردية ({report.get_shift_display()}) بنجاح.")
+    from .handover import decide_handover
+    from rest_framework.exceptions import APIException
+    try:
+        decide_handover(report.pk, request.user, request.POST.get("decision", "ACCEPT"), request.POST.get("handover_notes", ""))
+        messages.success(request, "تم تسجيل قرار مراجعة التقرير.")
+    except APIException as exc:
+        messages.error(request, str(exc.detail))
     return redirect("production:report_detail", pk=pk)
 
 

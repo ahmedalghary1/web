@@ -286,11 +286,23 @@ class SyncShiftReportInputSerializer(serializers.Serializer):
     report_date = serializers.DateField()
     started_at_device = serializers.DateTimeField(required=False, allow_null=True)
     completed_at_device = serializers.DateTimeField(required=False, allow_null=True)
-    status = serializers.ChoiceField(choices=["DRAFT", "PENDING_HANDOVER", "CONFIRMED"], default="PENDING_HANDOVER")
+    status = serializers.ChoiceField(choices=["DRAFT", "PENDING_HANDOVER"], default="PENDING_HANDOVER")
     general_notes = serializers.CharField(required=False, allow_blank=True, default="")
     entries = SyncMachineEntryInputSerializer(many=True, required=False, default=[])
     stoppages = SyncStoppageInputSerializer(many=True, required=False, default=[])
 
+    def validate(self, data):
+        if data["status"] == "DRAFT" and data.get("completed_at_device"):
+            raise serializers.ValidationError({"status": "إنهاء التقرير يتطلب تسليمه للمراجعة."})
+        return data
+
 class ConfirmHandoverInputSerializer(serializers.Serializer):
     client_report_id = serializers.UUIDField()
     handover_notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+    decision = serializers.ChoiceField(choices=["ACCEPT", "REJECT"], default="ACCEPT")
+
+    def validate(self, data):
+        if data["decision"] == "REJECT" and not data["handover_notes"].strip():
+            raise serializers.ValidationError({"handover_notes": "يجب كتابة سبب عدم القبول."})
+        return data

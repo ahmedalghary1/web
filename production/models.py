@@ -83,6 +83,19 @@ class MachineProductionDefault(models.Model):
         return f"إعدادات إنتاج {self.asset.asset_code}"
 
 
+class SupervisorHandoverRoute(models.Model):
+    supervisor = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="production_handover_route", verbose_name="المشرف المسلّم")
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="production_incoming_routes", verbose_name="المشرف المستلم")
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.supervisor_id and self.receiver_id:
+            a, b = self.supervisor, self.receiver
+            roles = {"PRODUCTION_SUPERVISOR", "GENERAL_SUPERVISOR"}
+            if a.pk == b.pk or not a.factory_id or a.factory_id != b.factory_id or not a.is_active or not b.is_active or a.role not in roles or b.role not in roles:
+                raise ValidationError("اختر مشرفين مختلفين ونشطين للإنتاج من نفس المصنع.")
+
+
 class ProductionShiftReport(models.Model):
     class Shift(models.TextChoices):
         FIRST = "FIRST", "الوردية الأولى (صباحية)"
@@ -93,6 +106,7 @@ class ProductionShiftReport(models.Model):
         DRAFT = "DRAFT", "مسودة"
         PENDING_HANDOVER = "PENDING_HANDOVER", "بانتظار تأكيد استلام الوردية"
         CONFIRMED = "CONFIRMED", "تم الاستلام والاعتماد"
+        REJECTED = "REJECTED", "غير مقبول"
 
     client_report_id = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
     factory = models.ForeignKey("factories.Factory", on_delete=models.PROTECT, related_name="production_reports", verbose_name="المصنع")

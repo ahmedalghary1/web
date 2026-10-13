@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}ترتيب تسليم المشرفين{% endblock %}
+{% block content %}
+<div class="page-title"><h1>ترتيب تسليم المشرفين</h1><a class="btn ghost" href="{% url 'production:home' %}">العودة للإنتاج</a></div>
+<div class="panel">
+  <p>اختر المصنع ثم حدد كل مشرف والمشرف الذي يستلم منه. لتكوين دورة مستمرة: أحمد ← محمود، محمود ← علي، علي ← أحمد.</p>
+  {% for f in factories %}<a class="btn {% if factory.id == f.id %}primary{% else %}ghost{% endif %}" href="?factory={{ f.id }}">{{ f.name }}</a> {% endfor %}
+</div>
+{% if factory %}
+<div class="panel"><h2>{{ factory.name }}</h2>
+  <p>اختيار مشرف مسجل مسبقًا يغيّر المستلم الخاص به، ويحوّل التقارير التي لم تُراجع إلى المستلم الجديد. القرارات المسجلة تظل محفوظة.</p>
+  <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn primary">حفظ ترتيب التسليم</button></form>
+</div>
+<div class="panel"><table><thead><tr><th>المشرف المسلّم</th><th>المشرف المستلم</th></tr></thead><tbody>
+{% for route in routes %}<tr><td>{{ route.supervisor.display_name }}</td><td>{{ route.receiver.display_name }}{% if not route.receiver.is_active %} (غير نشط){% endif %}</td></tr>
+{% empty %}<tr><td colspan="2">لم يتم تحديد ترتيب التسليم لهذا المصنع.</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<div class="panel">اختر مصنعًا لإعداد المشرفين.</div>{% endif %}
+{% endblock %}

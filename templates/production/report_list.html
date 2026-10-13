@@ -106,6 +106,7 @@
           <td>
             {% if rep.status == 'CONFIRMED' %}
               <span class="badge success">{% icon "check" %} مؤكد ومستلم</span>
+            {% elif rep.status == 'REJECTED' %}<span class="badge warning">غير مقبول</span>
             {% elif rep.status == 'PENDING_HANDOVER' %}
               <span class="badge warning">{% icon "clock" %} بانتظار الاستلام</span>
             {% else %}

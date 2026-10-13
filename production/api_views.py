@@ -30,6 +30,8 @@ from .serializers import (
     ConfirmHandoverInputSerializer,
 )
 
+from .handover import receiver_for, pending_for, decide_handover
+
 class ProductionBootstrapView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -77,44 +79,19 @@ class ProductionBootstrapView(APIView):
         next_shift_display = None
         next_supervisor = None
 
-        if user_shift:
-            next_shift = user.next_shift
-            next_shift_display = user.Shift(next_shift).label if next_shift else None
-            next_supervisor = user.get_next_shift_supervisor()
+        next_supervisor = receiver_for(user, factory)
+        if next_supervisor:
+            next_shift = next_supervisor.shift
+            next_shift_display = next_supervisor.get_shift_display() if next_shift else None
 
-        # 5. Pending handover report targeted to this incoming supervisor:
-        pending_handover = None
-        if user_shift:
-            prev_shift = user.previous_shift
-            # Priority 1: Reports from the previous shift of this factory awaiting handover
-            pending_handover = ProductionShiftReport.objects.filter(
-                factory=factory,
-                status=ProductionShiftReport.Status.PENDING_HANDOVER,
-                completed_at_device__isnull=False,
-                shift=prev_shift
-            ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
-
-            if not pending_handover:
-                # Priority 2: Directly assigned to this user
-                pending_handover = ProductionShiftReport.objects.filter(
-                    factory=factory,
-                    status=ProductionShiftReport.Status.PENDING_HANDOVER,
-                    completed_at_device__isnull=False,
-                    handover_to_supervisor=user
-                ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
-
-        if not pending_handover:
-            # Fallback for admin or general supervisors without a fixed shift
-            pending_handover = ProductionShiftReport.objects.filter(
-                factory=factory,
-                status=ProductionShiftReport.Status.PENDING_HANDOVER,
-                completed_at_device__isnull=False,
-            ).exclude(supervisor=user).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").first()
+        pending_handover = pending_for(user, factory).select_related(
+            "supervisor", "handover_to_supervisor"
+        ).prefetch_related("machine_entries", "stoppages").first()
 
         # 6. Today's reports
         today_reports = ProductionShiftReport.objects.filter(
             factory=factory,
-            report_date=today
+            report_date=today, supervisor=user
         ).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").order_by("-created_at")
 
         factories_list = [
@@ -188,22 +165,23 @@ class ProductionSyncReportView(APIView):
             report_shift = data.get("shift", "FIRST")
             report_status = data.get("status", "PENDING_HANDOVER")
 
-            target_handover_supervisor = None
-            if report_status == ProductionShiftReport.Status.PENDING_HANDOVER:
-                cycle_next = {
-                    "FIRST": "SECOND",
-                    "SECOND": "THIRD",
-                    "THIRD": "FIRST",
-                }.get(report_shift, "SECOND")
-                target_handover_supervisor = User.objects.filter(
-                    factory=factory,
-                    shift=cycle_next,
-                    is_active=True
-                ).first()
+            # Serialize submissions within a factory so a handover cannot race a new draft.
+            Factory.objects.select_for_update().get(pk=factory.pk)
+            target_handover_supervisor = receiver_for(user, factory)
 
             report = ProductionShiftReport.objects.filter(client_report_id=data["client_report_id"]).first()
             if report and report.factory_id != factory.pk:
                 return Response({"detail": "التقرير لا يتبع المصنع المحدد."}, status=status.HTTP_403_FORBIDDEN)
+            if report and report.supervisor_id != user.pk:
+                return Response({"detail": "لا يمكنك تعديل تقرير مشرف آخر."}, status=403)
+            if report and (report.completed_at_device is not None or report.status in {"CONFIRMED", "REJECTED"}):
+                return Response(ProductionShiftReportSerializer(report).data)
+            if pending_for(user, factory).exists():
+                return Response({"detail": "راجع تقرير المشرف السابق بالموافقة أو عدم القبول أولاً."}, status=409)
+            if report_status == "PENDING_HANDOVER" and not target_handover_supervisor:
+                return Response({"detail": "يجب تحديد المشرف المستلم من الداشبورد قبل التسليم."}, status=400)
+            if report_status == "PENDING_HANDOVER" and not data.get("completed_at_device"):
+                return Response({"detail": "وقت نهاية التقرير مطلوب عند التسليم."}, status=400)
             if not report:
                 report = ProductionShiftReport.objects.filter(
                     factory=factory,
@@ -245,7 +223,7 @@ class ProductionSyncReportView(APIView):
                 report.status = report_status
                 if data.get("general_notes") is not None:
                     report.general_notes = data.get("general_notes")
-                if not report.handover_to_supervisor and target_handover_supervisor:
+                if report_status == "PENDING_HANDOVER":
                     report.handover_to_supervisor = target_handover_supervisor
                 report.save()
 
@@ -494,14 +472,5 @@ class ProductionConfirmHandoverView(APIView):
         if not report:
             return Response({"detail": "تقرير الوردية غير موجود."}, status=status.HTTP_404_NOT_FOUND)
 
-        if report.completed_at_device is None:
-            return Response({"detail": "الوردية لم تنته بعد. يجب إنهاؤها قبل تأكيد الاستلام."}, status=status.HTTP_400_BAD_REQUEST)
-
-        report.status = ProductionShiftReport.Status.CONFIRMED
-        report.handover_to_supervisor = request.user
-        report.handover_confirmed_at = timezone.now()
-        if data.get("handover_notes"):
-            report.handover_notes = data["handover_notes"]
-        report.save()
-
+        report = decide_handover(report.pk, user, data["decision"], data["handover_notes"])
         return Response(ProductionShiftReportSerializer(report).data)

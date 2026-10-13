@@ -4,6 +4,7 @@ from . import views
 app_name = "production"
 
 urlpatterns = [
+    path("handover-routes/", views.handover_routes, name="handover_routes"),
     path("", views.home, name="home"),
     path("reports/", views.report_list, name="reports"),
     path("reports/<int:pk>/export.xlsx", views.export_report_excel, name="report_export_excel"),

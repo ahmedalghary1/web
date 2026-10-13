@@ -3,6 +3,20 @@ import math
 from django import forms
 from .models import MachineProductionDefault, Product, MachineOperator, ProductionOption
 
+
+class SupervisorHandoverRouteForm(forms.ModelForm):
+    class Meta:
+        from .models import SupervisorHandoverRoute
+        model = SupervisorHandoverRoute
+        fields = ["supervisor", "receiver"]
+
+    def __init__(self, *args, factory=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from accounts.models import User
+        supervisors = User.objects.filter(factory=factory, is_active=True, role__in=["PRODUCTION_SUPERVISOR", "GENERAL_SUPERVISOR"]).order_by("name", "phone")
+        for field in self.fields.values():
+            field.queryset = supervisors
+
 class MachineProductionDefaultForm(forms.ModelForm):
     class Meta:
         model = MachineProductionDefault

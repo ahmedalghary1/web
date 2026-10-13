@@ -28,6 +28,9 @@
       {% if report.status == 'CONFIRMED' %}
         <span class="badge success" style="font-size:14px; padding:6px 14px;">{% icon "check" %} تم التأكيد والاستلام</span>
         <small style="display:block; margin-top:6px;">المستلم: {{ report.handover_to_supervisor.display_name }} ({{ report.handover_confirmed_at|date:"Y-m-d h:i A" }})</small>
+      {% elif report.status == 'REJECTED' %}
+        <span class="badge warning">غير مقبول</span>
+        <small>المراجع: {{ report.handover_to_supervisor.display_name }} · {{ report.handover_confirmed_at|date:"Y-m-d H:i" }}</small>
       {% elif report.status == 'PENDING_HANDOVER' %}
         <span class="badge warning" style="font-size:14px; padding:6px 14px;">{% icon "clock" %} بانتظار تأكيد الاستلام</span>
         <small style="display:block; margin-top:6px;">بانتظار المشرف التالي</small>
@@ -61,7 +64,7 @@
   </article>
 </div>
 
-{% if report.status == 'PENDING_HANDOVER' and report.completed_at_device %}
+{% if report.status == 'PENDING_HANDOVER' and report.completed_at_device and report.handover_to_supervisor_id == request.user.id %}
 <div class="panel" style="border:2px solid #f39c12; background:#fffcf2; padding:20px;">
   <h3 style="margin-top:0; color:#b7791f; display:flex; align-items:center; gap:8px;">
     {% icon "handshake" %} تأكيد استلام الوردية
@@ -77,15 +80,16 @@
   </p>
   <form method="post" action="{% url 'production:confirm-handover' report.id %}" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
     {% csrf_token %}
-    <input type="text" name="handover_notes" placeholder="ملاحظات الاستلام (اختياري)..." style="flex:1; min-width:280px;">
-    <button type="submit" class="btn primary" style="background:#27ae60;">{% icon "check" %} تأكيد استلام الوردية</button>
+    <input type="text" name="handover_notes" placeholder="الملاحظات / سبب عدم القبول (إلزامي عند الرفض)" style="flex:1; min-width:280px;">
+    <button type="submit" name="decision" value="ACCEPT" class="btn primary" style="background:#27ae60;">{% icon "check" %} الموافقة</button>
+    <button type="submit" name="decision" value="REJECT" class="btn ghost">غير مقبول</button>
   </form>
 </div>
 {% endif %}
 
 {% if report.handover_notes %}
 <div class="panel" style="background:#f4fbf7; border:1px solid #b7e4c7;">
-  <h4 style="margin:0 0 6px; color:#1b4332;">ملاحظات استلام الوردية:</h4>
+  <h4 style="margin:0 0 6px; color:#1b4332;">{{ report.get_status_display }} — الملاحظات / سبب عدم القبول:</h4>
   <p style="margin:0; color:#2d6a4f;">{{ report.handover_notes }}</p>
 </div>
 {% endif %}

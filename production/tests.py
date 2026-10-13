@@ -14,6 +14,7 @@ from accounts.models import User
 from factories.models import Factory
 from assets.models import Asset
 from production.models import (
+    SupervisorHandoverRoute,
     Product,
     MachineOperator,
     MachineProductionDefault,
@@ -43,6 +44,8 @@ class ProductionAPITestCase(TestCase):
             factory=self.factory,
         )
 
+
+        SupervisorHandoverRoute.objects.create(supervisor=self.supervisor1, receiver=self.supervisor2)
 
         self.asset1 = Asset.objects.create(
             factory=self.factory,
@@ -434,6 +437,10 @@ class ProductionAPITestCase(TestCase):
             shift=User.Shift.THIRD
         )
 
+        SupervisorHandoverRoute.objects.create(supervisor=sup1, receiver=sup2)
+        SupervisorHandoverRoute.objects.create(supervisor=sup2, receiver=sup3)
+        SupervisorHandoverRoute.objects.create(supervisor=sup3, receiver=sup1)
+
         # Check cyclic next/previous shifts
         self.assertEqual(sup1.next_shift, "SECOND")
         self.assertEqual(sup1.get_next_shift_supervisor(), sup2)
@@ -524,7 +531,7 @@ class ProductionAPITestCase(TestCase):
             "client_report_id": client_rep_id,
             "shift": "FIRST",
             "report_date": today_str,
-            "status": "PENDING_HANDOVER",
+            "status": "DRAFT",
             "general_notes": "تسجيل ماكينة تجريبية",
             "entries": [
                 {
@@ -556,6 +563,7 @@ class ProductionAPITestCase(TestCase):
             "entries": [],
             "stoppages": []
         }
+        finish_sync["completed_at_device"] = timezone.now().isoformat()
         res2 = self.client.post(reverse("production-api:sync-shift-reports"), finish_sync, format="json")
         self.assertEqual(res2.status_code, 200)
 
@@ -726,7 +734,7 @@ class ProductionAPITestCase(TestCase):
 
     def test_unfinished_legacy_report_cannot_be_handed_over(self):
         report = ProductionShiftReport.objects.create(
-            factory=self.factory, supervisor=self.supervisor1, report_date=timezone.localdate(), status="PENDING_HANDOVER",
+            factory=self.factory, supervisor=self.supervisor1, report_date=timezone.localdate(), status="PENDING_HANDOVER", handover_to_supervisor=self.supervisor2,
         )
         self.client.force_authenticate(self.supervisor2)
         bootstrap = self.client.get(reverse("production-api:bootstrap"))
