@@ -13,7 +13,7 @@ from maintenance.services.cycle import MaintenanceCycleService
 class ApiSecurityTests(TestCase):
     def setUp(self):
         self.f1=Factory.objects.get(code="F1"); self.f2=Factory.objects.get(code="F2"); self.asset=Asset.objects.create(factory=self.f1,asset_type=Asset.Type.REGULAR_MACHINE,asset_code="API-ONLY",sequence_order=1); self.other=Asset.objects.create(factory=self.f2,asset_type=Asset.Type.REGULAR_MACHINE,asset_code="OTHER",sequence_order=1)
-        self.user=User.objects.create_user("01111111111","StrongPass!123",factory=self.f1); self.admin=User.objects.create_user("01333333333","StrongPass!123",role=User.Role.ADMIN); self.client=APIClient()
+        self.user=User.objects.create_user("01111111111","StrongPass!123",factory=self.f1); self.admin=User.objects.create_user("01333333333","StrongPass!123",role=User.Role.ADMIN); self.general=User.objects.create_user("01222222222","StrongPass!123",factory=self.f1,role=User.Role.GENERAL_SUPERVISOR); self.production=User.objects.create_user("01444444444","StrongPass!123",factory=self.f1,role=User.Role.PRODUCTION_SUPERVISOR); self.client=APIClient()
     def auth(self,user=None): self.client.force_authenticate(user or self.user)
     def payload(self,asset=None,date=None):
         asset=asset or self.asset; date=date or timezone.localdate(); start=datetime.combine(date,datetime.min.time(),tzinfo=ZoneInfo("Africa/Cairo"))+timedelta(hours=8); template=MaintenanceCycleService.template_for(asset)
@@ -42,6 +42,10 @@ class ApiSecurityTests(TestCase):
         self.auth(); payload=self.payload(); created=self.client.post("/api/v1/mobile/reports/",payload,format="json"); self.assertEqual(created.status_code,201); payload["answers"][0]["checked"]=True; payload["last_modified_at_device"]=(datetime.fromisoformat(payload["last_modified_at_device"])+timedelta(minutes=1)).isoformat(); updated=self.client.put(f"/api/v1/mobile/reports/{created.data['report']['id']}/",payload,format="json"); self.assertEqual(updated.status_code,201); self.assertTrue(updated.data["report"]["answers"][0]["checked"])
     def test_batch_duplicate_does_not_abort_results(self): self.auth(); payload=self.payload(); response=self.client.post("/api/v1/mobile/sync/reports/",{"reports":[payload,payload]},format="json"); self.assertEqual(response.status_code,200); self.assertEqual(len(response.data["results"]),2)
     def test_admin_cannot_use_mobile_endpoint(self): self.auth(self.admin); self.assertEqual(self.client.get("/api/v1/mobile/bootstrap/").status_code,403)
+    def test_general_supervisor_can_use_maintenance_mobile_endpoint(self):
+        self.auth(self.general); response=self.client.get("/api/v1/mobile/bootstrap/"); self.assertEqual(response.status_code,200); self.assertEqual(response.data["factory"]["id"],self.f1.id)
+    def test_production_only_supervisor_cannot_use_maintenance_mobile_endpoint(self):
+        self.auth(self.production); self.assertEqual(self.client.get("/api/v1/mobile/bootstrap/").status_code,403)
     def test_supervisor_can_select_active_asset_in_own_factory(self):
         second=Asset.objects.create(factory=self.f1,asset_type=Asset.Type.REGULAR_MACHINE,asset_code="SECOND",sequence_order=2); self.auth()
         response=self.client.post("/api/v1/mobile/current-maintenance/select/",{"asset_id":second.id},format="json")

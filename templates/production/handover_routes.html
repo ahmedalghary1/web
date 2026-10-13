@@ -103,7 +103,7 @@
           <span style="background:#ffffff; border:1px solid #86efac; color:#14532d; padding:4px 10px; border-radius:20px; font-weight:600;">
             {{ route.supervisor.display_name }}
           </span>
-          <span style="color:#16a34a; font-weight:bold;">➔</span>
+          <span style="color:#16a34a; font-weight:bold; font-size:16px;" title="يسلّم إلى">←</span>
           {% if forloop.last %}
             <span style="background:#ffffff; border:1px solid #86efac; color:#14532d; padding:4px 10px; border-radius:20px; font-weight:600;">
               {{ route.receiver.display_name }}
@@ -141,8 +141,8 @@
                 {% endif %}
                 <small style="color:#64748b; font-size:11px; display:block;">{{ route.supervisor.phone }}</small>
               </td>
-              <td style="text-align:center; color:var(--primary); font-weight:bold; font-size:16px;">
-                ➔
+              <td style="text-align:center; color:var(--primary); font-weight:bold; font-size:18px;" title="يسلّم إلى">
+                ←
               </td>
               <td>
                 <strong>{{ route.receiver.display_name }}</strong>
