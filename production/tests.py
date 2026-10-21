@@ -147,6 +147,32 @@ class ProductionAPITestCase(TestCase):
         self.assertEqual(asset_data["production_default"]["original_cavities"], 4)
         self.assertEqual(asset_data["production_default"]["cooling_time_seconds"], 12.5)
 
+    def test_sync_rejects_report_owned_by_another_logged_in_account(self):
+        self.client.force_authenticate(user=self.supervisor2)
+        response = self.client.post("/api/v1/production/sync/shift-reports/", {
+            "client_report_id": str(uuid.uuid4()),
+            "supervisor_id": self.supervisor1.pk,
+            "shift": "FIRST",
+            "report_date": timezone.localdate().isoformat(),
+            "status": "DRAFT",
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(ProductionShiftReport.objects.exists())
+
+    def test_sync_rejects_shift_assigned_to_another_account(self):
+        self.supervisor1.shift = User.Shift.FIRST
+        self.supervisor1.save(update_fields=["shift"])
+        self.client.force_authenticate(user=self.supervisor1)
+        response = self.client.post("/api/v1/production/sync/shift-reports/", {
+            "client_report_id": str(uuid.uuid4()),
+            "supervisor_id": self.supervisor1.pk,
+            "shift": "SECOND",
+            "report_date": timezone.localdate().isoformat(),
+            "status": "DRAFT",
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(ProductionShiftReport.objects.exists())
+
     def test_sync_shift_report_with_product_change(self):
         self.client.force_authenticate(user=self.supervisor1)
         client_id = str(uuid.uuid4())
@@ -154,6 +180,7 @@ class ProductionAPITestCase(TestCase):
 
         payload = {
             "client_report_id": client_id,
+            "supervisor_id": self.supervisor1.pk,
             "shift": "FIRST",
             "report_date": today,
             "status": "PENDING_HANDOVER",

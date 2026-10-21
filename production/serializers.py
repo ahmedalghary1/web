@@ -281,6 +281,10 @@ class SyncStoppageInputSerializer(serializers.Serializer):
 
 class SyncShiftReportInputSerializer(serializers.Serializer):
     client_report_id = serializers.UUIDField()
+    # The mobile app persists the report owner with the offline draft. Django
+    # still trusts the JWT, but verifies this claim to catch an account switch
+    # before an old WorkManager job can create a report for the wrong user.
+    supervisor_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     factory_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     shift = serializers.ChoiceField(choices=["FIRST", "SECOND", "THIRD"], default="FIRST")
     report_date = serializers.DateField()

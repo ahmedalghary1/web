@@ -148,6 +148,13 @@ class ProductionSyncReportView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        claimed_supervisor_id = data.get("supervisor_id")
+        if claimed_supervisor_id is not None and claimed_supervisor_id != user.pk:
+            return Response(
+                {"detail": "صاحب التقرير المحلي لا يطابق الحساب المسجل حاليًا. سجّل الدخول بالحساب الصحيح لإرسال التقرير."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         factory = user.factory
         requested_factory_id = data.get("factory_id")
         if getattr(user, "is_admin", False):
@@ -164,6 +171,12 @@ class ProductionSyncReportView(APIView):
         with transaction.atomic():
             report_shift = data.get("shift", "FIRST")
             report_status = data.get("status", "PENDING_HANDOVER")
+
+            if not getattr(user, "is_admin", False) and user.shift and report_shift != user.shift:
+                return Response(
+                    {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
             # Serialize submissions within a factory so a handover cannot race a new draft.
             Factory.objects.select_for_update().get(pk=factory.pk)
