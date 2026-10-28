@@ -61,7 +61,8 @@
           </td>
           <td>
             {% if u.shift %}
-              <span class="badge" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;">{{ u.get_shift_display }}</span>
+              <span class="badge" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;">{{ u.current_shift_display }}</span>
+              {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted);">الأساس: {{ u.get_shift_display }}</small>{% endif %}
             {% else %}
               <span class="badge muted">غير محدد</span>
             {% endif %}

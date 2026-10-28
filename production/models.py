@@ -96,6 +96,30 @@ class SupervisorHandoverRoute(models.Model):
                 raise ValidationError("اختر مشرفين مختلفين ونشطين للإنتاج من نفس المصنع.")
 
 
+class FactoryShiftRotation(models.Model):
+    SHIFT_CHOICES = [("FIRST", "الصباحية"), ("SECOND", "المسائية"), ("THIRD", "الليلية")]
+    WEEKDAY_CHOICES = [
+        (5, "السبت"), (6, "الأحد"), (0, "الاثنين"), (1, "الثلاثاء"),
+        (2, "الأربعاء"), (3, "الخميس"), (4, "الجمعة"),
+    ]
+
+    factory = models.OneToOneField("factories.Factory", on_delete=models.CASCADE, related_name="shift_rotation")
+    first_shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, default="FIRST")
+    second_shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, default="SECOND")
+    third_shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, default="THIRD")
+    week_starts_on = models.PositiveSmallIntegerField(choices=WEEKDAY_CHOICES, default=4)
+    effective_from = models.DateField("بداية أسبوع التدوير", default=timezone.localdate)
+
+    @property
+    def shift_order(self):
+        return (self.first_shift, self.second_shift, self.third_shift)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if set(self.shift_order) != {"FIRST", "SECOND", "THIRD"}:
+            raise ValidationError("اختر كل وردية مرة واحدة في ترتيب التدوير.")
+
+
 class ProductionShiftReport(models.Model):
     class Shift(models.TextChoices):
         FIRST = "FIRST", "الوردية الأولى (صباحية)"

@@ -3,9 +3,13 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import ProductionShiftReport, SupervisorHandoverRoute
 from factories.models import Factory
+from .shift_rotation import next_supervisor_for, rotation_for
 
 
-def receiver_for(user, factory):
+def receiver_for(user, factory, day=None):
+    rotation = rotation_for(factory)
+    if rotation:
+        return next_supervisor_for(user, factory, day, rotation)
     route = SupervisorHandoverRoute.objects.select_related("receiver").filter(supervisor=user).first()
     if route and route.receiver.is_active and route.receiver.factory_id == factory.pk and route.receiver.role in {"PRODUCTION_SUPERVISOR", "GENERAL_SUPERVISOR"} and route.receiver_id != user.pk:
         return route.receiver

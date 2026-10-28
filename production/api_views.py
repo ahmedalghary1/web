@@ -31,6 +31,7 @@ from .serializers import (
 )
 
 from .handover import receiver_for, pending_for, decide_handover
+from .shift_rotation import effective_shift, next_shift_for, rotation_for
 
 class ProductionBootstrapView(APIView):
     permission_classes = [IsAuthenticated]
@@ -74,15 +75,16 @@ class ProductionBootstrapView(APIView):
         operators = MachineOperator.objects.filter(factory=factory, is_active=True).order_by("name")
 
         # 4. Resolve shift info and next supervisor for current user
-        user_shift = getattr(user, "shift", None)
+        rotation = rotation_for(factory)
+        user_shift = effective_shift(user, today, rotation)
         next_shift = None
         next_shift_display = None
         next_supervisor = None
 
-        next_supervisor = receiver_for(user, factory)
+        next_supervisor = receiver_for(user, factory, today)
         if next_supervisor:
-            next_shift = next_supervisor.shift
-            next_shift_display = next_supervisor.get_shift_display() if next_shift else None
+            next_shift = next_shift_for(user, today, rotation) if rotation else next_supervisor.shift
+            next_shift_display = dict(User.Shift.choices).get(next_shift)
 
         pending_handover = pending_for(user, factory).select_related(
             "supervisor", "handover_to_supervisor"
@@ -114,7 +116,7 @@ class ProductionBootstrapView(APIView):
                 "name": user.display_name,
                 "role": user.role,
                 "shift": user_shift,
-                "shift_display": user.get_shift_display() if user_shift else None,
+                "shift_display": dict(User.Shift.choices).get(user_shift),
                 "next_shift": next_shift,
                 "next_shift_display": next_shift_display,
                 "next_shift_supervisor": {
@@ -172,7 +174,13 @@ class ProductionSyncReportView(APIView):
             report_shift = data.get("shift", "FIRST")
             report_status = data.get("status", "PENDING_HANDOVER")
 
-            if not getattr(user, "is_admin", False) and user.shift and report_shift != user.shift:
+            expected_shift = effective_shift(user, data["report_date"])
+            if not getattr(user, "is_admin", False) and rotation_for(factory) and not expected_shift:
+                return Response(
+                    {"detail": "حدد وردية بداية للمشرف من الداشبورد قبل تسجيل التقرير."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if not getattr(user, "is_admin", False) and expected_shift and report_shift != expected_shift:
                 return Response(
                     {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
                     status=status.HTTP_403_FORBIDDEN,
@@ -180,7 +188,7 @@ class ProductionSyncReportView(APIView):
 
             # Serialize submissions within a factory so a handover cannot race a new draft.
             Factory.objects.select_for_update().get(pk=factory.pk)
-            target_handover_supervisor = receiver_for(user, factory)
+            target_handover_supervisor = receiver_for(user, factory, data["report_date"])
 
             report = ProductionShiftReport.objects.filter(client_report_id=data["client_report_id"]).first()
             if report and report.factory_id != factory.pk:

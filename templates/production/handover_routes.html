@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load icons %}
-{% block title %}ترتيب تسليم المشرفين | إدارة الإنتاج{% endblock %}
+{% block title %}تدوير الورديات وتسليم المشرفين | إدارة الإنتاج{% endblock %}
 
 {% block content %}
 <div class="toolbar" style="margin-bottom:20px;">
   <div class="page-title">
     <h1 style="display:flex; align-items:center; gap:10px;">
-      {% icon "handshake" %} ترتيب ودورة تسليم المشرفين
+      {% icon "handshake" %} تدوير الورديات وتسليم المشرفين
     </h1>
     <p style="color:var(--muted); margin:4px 0 0;">
       تحديد المشرف المستلم لكل مشرف في المصنع لإدارة دورة تسليم تقارير الإنتاج والأعطال اليومية.
@@ -24,7 +24,7 @@
   </h3>
   <ol style="margin:0; padding-right:20px; color:#475569; font-size:13.5px; line-height:1.7;">
     <li>يقوم المشرف بتسجيل بيانات الإنتاج والأعطال لورديته، وعند إنهائها يضغط <strong>تسليم الوردية</strong>.</li>
-    <li>التطبيق يوجه التقرير تلقائياً إلى <strong>المشرف المستلم</strong> المحدد له في هذا الجدول أدناه.</li>
+    <li>التطبيق يوجه التقرير تلقائياً إلى <strong>مشرف الوردية التالية</strong> عند تفعيل التدوير، أو إلى المشرف المحدد في جدول التسليم الثابت.</li>
     <li>عند فتح المشرف المستلم لتطبيق الهاتف، يظهر له <strong>تقرير المشرف السابق كاملاً للعرض فقط</strong> (دون إمكانية تعديل) مع خيارين:
       <span style="color:#16a34a; font-weight:700;">الموافقة</span> أو 
       <span style="color:#dc2626; font-weight:700;">غير مقبول</span> (مع اشتراط كتابة سبب عدم القبول إجبارياً).
@@ -47,6 +47,33 @@
 {% endif %}
 
 {% if factory %}
+<div class="panel" style="padding:22px; margin-bottom:20px; border-radius:10px;">
+  <h2 style="margin:0 0 10px;">تدوير الورديات الأسبوعي — {{ factory.name }}</h2>
+  <p style="color:var(--muted); font-size:13px;">
+    اختر التسلسل الذي ينتقل فيه كل مشرف أسبوعيًا. وردية المشرف المحددة في صفحة المستخدمين هي ورديته في أسبوع البداية.
+    يبدأ الأسبوع افتراضيًا يوم الجمعة، ويتغير تخصيص المشرف تلقائيًا عند بداية كل أسبوع جديد.
+  </p>
+  <form method="post" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; align-items:end;">
+    {% csrf_token %}<input type="hidden" name="action" value="rotation">
+    {% for field in rotation_form %}
+      <div><label for="{{ field.id_for_label }}" style="display:block; font-weight:700; margin-bottom:5px;">{{ field.label }}</label>{{ field }}{% if field.errors %}<div style="color:#dc2626;">{{ field.errors }}</div>{% endif %}</div>
+    {% endfor %}
+    {% if rotation_form.non_field_errors %}<div style="color:#dc2626; grid-column:1/-1;">{{ rotation_form.non_field_errors }}</div>{% endif %}
+    <button type="submit" class="btn primary">{% icon "check" %} حفظ التدوير</button>
+  </form>
+  {% if rotation %}
+    <form method="post" style="margin-top:12px;">{% csrf_token %}<input type="hidden" name="action" value="disable_rotation"><button class="btn ghost" type="submit">إيقاف التدوير والعودة للورديات الثابتة</button></form>
+  {% endif %}
+  {% if assignments %}
+    <div class="table-wrap" style="margin-top:18px;"><table><thead><tr><th>المشرف</th><th>وردية أسبوع البداية</th><th>هذا الأسبوع</th><th>الأسبوع القادم</th></tr></thead><tbody>
+    {% for assignment in assignments %}<tr><td>{{ assignment.name }}</td><td>{{ assignment.base }}</td><td>{{ assignment.current }}</td><td>{{ assignment.next }}</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% endif %}
+  {% if assignment_warning %}<p style="color:#b45309; font-weight:700;">لإتمام التسليم تلقائيًا، عيّن مشرف إنتاج نشطًا واحدًا لكل وردية أساس في هذا المصنع من صفحة المستخدمين.</p>{% endif %}
+</div>
+{% if rotation %}
+<p class="hint">تسليم التقارير يتبع ترتيب الورديات أعلاه تلقائيًا. لإدارة مسارات تسليم ثابتة، أوقف التدوير الأسبوعي.</p>
+{% else %}
 <div style="display:grid; grid-template-columns:1fr 1.3fr; gap:20px; align-items:start;">
   <!-- Route Assignment Form -->
   <div class="panel" style="padding:22px; border-radius:10px;">
@@ -179,6 +206,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% else %}
 <div class="panel" style="padding:30px; text-align:center;">
   <p style="color:var(--muted); margin:0;">اختر مصنعاً من الأعلى لإعداد ترتيب المشرفين.</p>

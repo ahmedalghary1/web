@@ -1,7 +1,38 @@
 import math
 
 from django import forms
-from .models import MachineProductionDefault, Product, MachineOperator, ProductionOption
+from .models import FactoryShiftRotation, MachineProductionDefault, Product, MachineOperator, ProductionOption
+
+
+class FactoryShiftRotationForm(forms.ModelForm):
+    class Meta:
+        model = FactoryShiftRotation
+        fields = ["first_shift", "second_shift", "third_shift", "week_starts_on", "effective_from"]
+        labels = {
+            "first_shift": "الوردية الأولى في التسلسل",
+            "second_shift": "الوردية التالية",
+            "third_shift": "الوردية الأخيرة",
+            "week_starts_on": "بداية الأسبوع",
+            "effective_from": "تاريخ أسبوع البداية",
+        }
+        widgets = {
+            "first_shift": forms.Select(attrs={"class": "form-control"}),
+            "second_shift": forms.Select(attrs={"class": "form-control"}),
+            "third_shift": forms.Select(attrs={"class": "form-control"}),
+            "week_starts_on": forms.Select(attrs={"class": "form-control"}),
+            "effective_from": forms.DateInput(attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"),
+        }
+
+    def clean(self):
+        data = super().clean()
+        shifts = [data.get("first_shift"), data.get("second_shift"), data.get("third_shift")]
+        if all(shifts) and len(set(shifts)) != 3:
+            raise forms.ValidationError("اختر كل وردية مرة واحدة في تسلسل التدوير.")
+        start = data.get("effective_from")
+        weekday = data.get("week_starts_on")
+        if start and weekday is not None and start.weekday() != weekday:
+            self.add_error("effective_from", "اختر تاريخًا يوافق يوم بداية الأسبوع المحدد.")
+        return data
 
 
 class SupervisorHandoverRouteForm(forms.ModelForm):

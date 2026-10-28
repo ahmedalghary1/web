@@ -1,4 +1,5 @@
 from functools import wraps
+from datetime import timedelta
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -82,8 +83,10 @@ def get_active_factory_context(request):
 
 @production_access_required
 def handover_routes(request):
-    from .models import SupervisorHandoverRoute
-    from .forms import SupervisorHandoverRouteForm
+    from .models import FactoryShiftRotation, SupervisorHandoverRoute
+    from .forms import FactoryShiftRotationForm, SupervisorHandoverRouteForm
+    from .shift_rotation import effective_shift, week_start
+    from accounts.models import User
     from django.db import transaction
     factory, factories, is_admin = get_active_factory_context(request)
     can_manage = is_admin or request.user.role == "GENERAL_SUPERVISOR"
@@ -92,6 +95,27 @@ def handover_routes(request):
     if not is_admin and request.user.role == "GENERAL_SUPERVISOR":
         factory = getattr(request.user, "factory", None)
         factories = [factory] if factory else []
+
+    rotation = FactoryShiftRotation.objects.filter(factory=factory).first() if factory else None
+    if request.method == "POST" and request.POST.get("action") == "disable_rotation" and rotation:
+        rotation.delete()
+        messages.success(request, "تم إيقاف التدوير الأسبوعي والعودة إلى الورديات الثابتة.")
+        redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin else "")
+        return redirect(redirect_url)
+    rotation_post = request.method == "POST" and request.POST.get("action") == "rotation"
+    rotation_form = FactoryShiftRotationForm(
+        request.POST if rotation_post else None,
+        instance=rotation,
+        initial={"effective_from": week_start(timezone.localdate(), 4)} if not rotation else None,
+    )
+    if rotation_post and factory and rotation_form.is_valid():
+        schedule = rotation_form.save(commit=False)
+        schedule.factory = factory
+        schedule.full_clean()
+        schedule.save()
+        messages.success(request, "تم حفظ تدوير الورديات الأسبوعي للمصنع.")
+        redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin else "")
+        return redirect(redirect_url)
 
     if request.method == "POST" and factory and request.POST.get("action") == "delete":
         route_id = request.POST.get("route_id")
@@ -107,8 +131,8 @@ def handover_routes(request):
     instance = None
     if request.method == "POST" and factory and request.POST.get("supervisor", "").isdigit():
         instance = SupervisorHandoverRoute.objects.filter(supervisor_id=request.POST.get("supervisor") or None, supervisor__factory=factory).first()
-    form = SupervisorHandoverRouteForm(request.POST or None, instance=instance, factory=factory)
-    if request.method == "POST" and factory and form.is_valid():
+    form = SupervisorHandoverRouteForm(request.POST if request.method == "POST" and request.POST.get("action") not in {"rotation", "disable_rotation"} else None, instance=instance, factory=factory)
+    if request.method == "POST" and request.POST.get("action") not in {"rotation", "disable_rotation"} and factory and form.is_valid():
         with transaction.atomic():
             Factory.objects.select_for_update().get(pk=factory.pk)
             route = form.save()
@@ -118,8 +142,24 @@ def handover_routes(request):
         redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin and factory else "")
         return redirect(redirect_url)
     routes = SupervisorHandoverRoute.objects.filter(supervisor__factory=factory).select_related("supervisor", "receiver") if factory else []
+    shift_labels = dict(User.Shift.choices)
+    supervisors = User.objects.filter(factory=factory, is_active=True, role__in=[User.Role.PRODUCTION_SUPERVISOR, User.Role.GENERAL_SUPERVISOR]).order_by("name", "phone") if factory else []
+    assignments = [{
+        "name": supervisor.display_name,
+        "base": shift_labels.get(supervisor.shift, "غير محددة"),
+        "current": shift_labels.get(effective_shift(supervisor, timezone.localdate(), rotation), "غير محددة"),
+        "next": shift_labels.get(effective_shift(supervisor, timezone.localdate() + timedelta(days=7), rotation), "غير محددة"),
+    } for supervisor in supervisors]
+    assignment_warning = bool(rotation) and any(
+        sum(1 for supervisor in supervisors if supervisor.shift == shift) != 1
+        for shift in (User.Shift.FIRST, User.Shift.SECOND, User.Shift.THIRD)
+    )
     return render(request, "production/handover_routes.html", {
         "form": form,
+        "rotation_form": rotation_form,
+        "rotation": rotation,
+        "assignments": assignments,
+        "assignment_warning": assignment_warning,
         "routes": routes,
         "factory": factory,
         "factories": factories,

@@ -290,7 +290,17 @@ def report_edit(request, pk):
 @login_required
 @admin_required
 def user_list(request):
-    users = User.objects.select_related("factory").order_by("role", "name")
+    from production.models import FactoryShiftRotation
+    from production.shift_rotation import shift_for_base
+    users = list(User.objects.select_related("factory").order_by("role", "name"))
+    rotations = {rotation.factory_id: rotation for rotation in FactoryShiftRotation.objects.filter(
+        factory_id__in={user.factory_id for user in users if user.factory_id}
+    )}
+    labels = dict(User.Shift.choices)
+    for user in users:
+        rotation = rotations.get(user.factory_id)
+        user.current_shift_display = labels.get(shift_for_base(user.shift, timezone.localdate(), rotation))
+        user.has_shift_rotation = rotation is not None
     return render(request, "dashboard/users.html", {"users": users})
 
 @login_required
