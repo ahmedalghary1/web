@@ -182,3 +182,13 @@ class Asset(models.Model):
         if title_base.startswith("إنتاج"):
             return title_base
         return f"إنتاج {title_base}"
+
+
+def asset_type_order_expression(field="asset_type"):
+    """Show each machine type together, in the order defined by Asset.Type."""
+    return models.Case(
+        *(models.When(**{field: code}, then=models.Value(index))
+          for index, (code, _) in enumerate(Asset.Type.choices)),
+        default=models.Value(len(Asset.Type.choices)),
+        output_field=models.IntegerField(),
+    )

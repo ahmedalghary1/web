@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from accounts.models import User
-from assets.models import Asset, AssetType, ensure_default_asset_types_if_empty
+from assets.models import Asset, AssetType, asset_type_order_expression, ensure_default_asset_types_if_empty
 from dashboard.forms import AccountUpdateForm, AssetForm, AssetTypeForm, SupervisorForm
 from factories.models import Factory
 from maintenance.models import MaintenanceReport, MaintenanceReportItem
@@ -77,6 +77,9 @@ def asset_list(request):
     if request.GET.get("q"):
         query = request.GET["q"].strip()
         qs = qs.filter(Q(asset_code__icontains=query) | Q(name__icontains=query))
+    qs = qs.annotate(_type_order=asset_type_order_expression()).order_by(
+        "factory_id", "_type_order", "asset_type", "sequence_order", "id"
+    )
     types = list(AssetType.objects.filter(is_active=True).values_list("code", "name")) or list(Asset.Type.choices)
     return render(request, "dashboard/assets.html", {"assets": qs, "factories": Factory.objects.all(), "types": types})
 

@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 
-from assets.models import Asset
+from assets.models import Asset, asset_type_order_expression
 from factories.models import Factory
 from accounts.models import User
 from .models import (
@@ -65,7 +65,7 @@ class ProductionBootstrapView(APIView):
             "production_default", "production_default__default_product", "production_default__default_operator",
             "production_default__default_raw_material", "production_default__default_final_unit",
             "production_default__target_cycle_unit", "production_default__default_packaging",
-        ).order_by("sequence_order", "id")
+        ).annotate(_type_order=asset_type_order_expression()).order_by("_type_order", "asset_type", "sequence_order", "id")
 
         # 2. Products
         products = Product.objects.filter(factory=factory, is_active=True).order_by("name")

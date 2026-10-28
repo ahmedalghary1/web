@@ -173,6 +173,50 @@ class ProductionAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(ProductionShiftReport.objects.exists())
 
+    def test_three_shifts_keep_separate_reports_for_same_factory_and_day(self):
+        third_supervisor = User.objects.create_user(
+            phone="01111111113", password="password123", name="مشرف الوردية الثالثة",
+            role=User.Role.PRODUCTION_SUPERVISOR, factory=self.factory, shift=User.Shift.THIRD,
+        )
+        supervisors = (
+            (self.supervisor1, User.Shift.FIRST),
+            (self.supervisor2, User.Shift.SECOND),
+            (third_supervisor, User.Shift.THIRD),
+        )
+        report_date = timezone.localdate().isoformat()
+        for supervisor, shift in supervisors:
+            supervisor.shift = shift
+            supervisor.save(update_fields=["shift"])
+            self.client.force_authenticate(user=supervisor)
+            response = self.client.post("/api/v1/production/sync/shift-reports/", {
+                "client_report_id": str(uuid.uuid4()),
+                "shift": shift,
+                "report_date": report_date,
+                "status": "DRAFT",
+            }, format="json")
+            self.assertEqual(response.status_code, 200, response.data)
+
+        reports = ProductionShiftReport.objects.filter(factory=self.factory, report_date=report_date)
+        self.assertEqual(reports.count(), 3)
+        self.assertEqual(set(reports.values_list("shift", flat=True)), {"FIRST", "SECOND", "THIRD"})
+
+    def test_bootstrap_groups_machine_types_before_sequence_number(self):
+        press = Asset.objects.create(
+            factory=self.factory, asset_type=Asset.Type.PRESS,
+            asset_code="P-01", sequence_order=1,
+        )
+        machine_two = Asset.objects.create(
+            factory=self.factory, asset_type=Asset.Type.REGULAR_MACHINE,
+            asset_code="M-02", sequence_order=2,
+        )
+        self.client.force_authenticate(user=self.supervisor1)
+        response = self.client.get(reverse("production-api:bootstrap"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [asset["id"] for asset in response.data["assets"] if asset["id"] in {self.asset1.id, machine_two.id, press.id}],
+            [self.asset1.id, machine_two.id, press.id],
+        )
+
     def test_sync_shift_report_with_product_change(self):
         self.client.force_authenticate(user=self.supervisor1)
         client_id = str(uuid.uuid4())

@@ -10,7 +10,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 
 
-from assets.models import Asset
+from assets.models import Asset, asset_type_order_expression
 from factories.models import Factory
 from .models import (
     Product,
@@ -247,7 +247,11 @@ def report_detail(request, pk):
     else:
         report = get_object_or_404(qs, pk=pk)
 
-    entries = report.machine_entries.select_related("asset", "operator", "original_operator", "product", "original_product").all()
+    entries = report.machine_entries.select_related(
+        "asset", "operator", "original_operator", "product", "original_product"
+    ).annotate(_type_order=asset_type_order_expression("asset__asset_type")).order_by(
+        "_type_order", "asset__asset_type", "asset__sequence_order", "asset__id", "id"
+    )
     stoppages = report.stoppages.select_related("asset").all()
 
     total_weight = entries.aggregate(s=Sum("final_production_weight_kg"))["s"] or 0.0
@@ -286,7 +290,9 @@ def export_report_excel(request, pk):
     report = get_object_or_404(reports, pk=pk)
     entries = report.machine_entries.select_related(
         "asset", "operator", "original_operator", "product", "original_product"
-    ).order_by("asset__sequence_order", "asset__asset_code", "id")
+    ).annotate(_type_order=asset_type_order_expression("asset__asset_type")).order_by(
+        "_type_order", "asset__asset_type", "asset__sequence_order", "asset__id", "id"
+    )
     stoppages = report.stoppages.select_related("asset").order_by("created_at", "id")
     workbook = build_report_workbook(report, entries, stoppages)
     response = HttpResponse(
@@ -340,7 +346,7 @@ def machine_defaults(request):
             "production_default__target_cycle_unit",
             "production_default__default_packaging",
             "factory",
-        ).order_by("sequence_order", "id")
+        ).annotate(_type_order=asset_type_order_expression()).order_by("_type_order", "asset_type", "sequence_order", "id")
     else:
         assets = Asset.objects.filter(
             is_archived=False
@@ -353,7 +359,7 @@ def machine_defaults(request):
             "production_default__target_cycle_unit",
             "production_default__default_packaging",
             "factory",
-        ).order_by("factory__id", "sequence_order", "id")
+        ).annotate(_type_order=asset_type_order_expression()).order_by("factory__id", "_type_order", "asset_type", "sequence_order", "id")
 
     context = {
         "assets": assets,

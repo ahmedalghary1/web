@@ -69,6 +69,22 @@ class DashboardReportLinkTests(TestCase):
         self.assertContains(response, "تم تعيين الماكينة")
 
 
+class MachineListingOrderTests(TestCase):
+    def test_dashboard_and_production_settings_group_machines_before_presses(self):
+        factory = Factory.objects.get(code="F1")
+        admin = User.objects.create_superuser("01000000771", "StrongPass!123")
+        self.client.force_login(admin)
+        press = Asset.objects.create(factory=factory, asset_type=Asset.Type.PRESS, asset_code="ORDER-PRESS", sequence_order=1)
+        machine_two = Asset.objects.create(factory=factory, asset_type=Asset.Type.REGULAR_MACHINE, asset_code="ORDER-M2", sequence_order=2)
+        machine_one = Asset.objects.create(factory=factory, asset_type=Asset.Type.REGULAR_MACHINE, asset_code="ORDER-M1", sequence_order=1)
+        expected = [machine_one.id, machine_two.id, press.id]
+
+        for url in (reverse("dashboard:assets"), reverse("production:machine_defaults")):
+            response = self.client.get(url, {"factory": factory.id})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual([asset.id for asset in response.context["assets"] if asset.id in expected], expected)
+
+
 class AssetDeleteTests(TestCase):
     def setUp(self):
         self.factory = Factory.objects.get(code="F1")
