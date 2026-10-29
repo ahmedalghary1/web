@@ -297,9 +297,13 @@ def user_list(request):
         factory_id__in={user.factory_id for user in users if user.factory_id}
     )}
     labels = dict(User.Shift.choices)
+    from accounts.shifts import SHIFT_WINDOWS
     for user in users:
         rotation = rotations.get(user.factory_id)
-        user.current_shift_display = labels.get(shift_for_base(user.shift, timezone.localdate(), rotation))
+        effective = shift_for_base(user.shift, timezone.localdate(), rotation)
+        user.effective_shift_code = effective
+        user.current_shift_display = labels.get(effective)
+        user.shift_hours_display = SHIFT_WINDOWS.get(effective, {}).get("short_hours", "")
         user.has_shift_rotation = rotation is not None
     return render(request, "dashboard/users.html", {"users": users})
 

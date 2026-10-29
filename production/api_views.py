@@ -4,6 +4,7 @@ from rest_framework import status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
@@ -11,6 +12,7 @@ from drf_spectacular.utils import extend_schema
 from assets.models import Asset, asset_type_order_expression
 from factories.models import Factory
 from accounts.models import User
+from accounts.shifts import is_within_shift_window, get_current_shift_by_time, SHIFT_WINDOWS
 from .models import (
     Product,
     MachineOperator,
@@ -117,6 +119,9 @@ class ProductionBootstrapView(APIView):
                 "role": user.role,
                 "shift": user_shift,
                 "shift_display": dict(User.Shift.choices).get(user_shift),
+                "shift_hours": SHIFT_WINDOWS.get(user_shift, {}).get("hours_display", ""),
+                "is_within_shift_window": is_within_shift_window(user_shift) if user_shift else False,
+                "current_active_shift": get_current_shift_by_time(),
                 "next_shift": next_shift,
                 "next_shift_display": next_shift_display,
                 "next_shift_supervisor": {
@@ -175,16 +180,38 @@ class ProductionSyncReportView(APIView):
             report_status = data.get("status", "PENDING_HANDOVER")
 
             expected_shift = effective_shift(user, data["report_date"])
-            if not getattr(user, "is_admin", False) and rotation_for(factory) and not expected_shift:
-                return Response(
-                    {"detail": "حدد وردية بداية للمشرف من الداشبورد قبل تسجيل التقرير."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            if not getattr(user, "is_admin", False) and expected_shift and report_shift != expected_shift:
-                return Response(
-                    {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            is_admin_user = getattr(user, "is_admin", user.is_superuser or user.role == "ADMIN")
+            enforce_shifts = getattr(settings, "ENFORCE_SHIFT_HOURS", True)
+            if not is_admin_user and enforce_shifts:
+                if not expected_shift:
+                    return Response(
+                        {"detail": "لم يتم تحديد وردية لهذا الحساب في لوحة التحكم. يرجى التواصل مع الإدارة لتحديد الوردية."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if report_shift != expected_shift:
+                    return Response(
+                        {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if not is_within_shift_window(expected_shift):
+                    window_info = SHIFT_WINDOWS.get(expected_shift, {})
+                    shift_name = window_info.get("name", dict(User.Shift.choices).get(expected_shift, expected_shift))
+                    hours_text = window_info.get("hours_display", "")
+                    return Response(
+                        {"detail": f"لا يمكن تسجيل أو إرسال تقرير {shift_name} إلا خلال ساعات الوردية المخصصة ({hours_text})."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+            elif not is_admin_user:
+                if rotation_for(factory) and not expected_shift:
+                    return Response(
+                        {"detail": "حدد وردية بداية للمشرف من الداشبورد قبل تسجيل التقرير."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if expected_shift and report_shift != expected_shift:
+                    return Response(
+                        {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
             # Serialize submissions within a factory so a handover cannot race a new draft.
             Factory.objects.select_for_update().get(pk=factory.pk)

@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ def env_bool(name, default=False):
 
 SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-development-key-change-me")
 DEBUG = env_bool("DEBUG", True)
+ENFORCE_SHIFT_HOURS = env_bool("ENFORCE_SHIFT_HOURS", "test" not in sys.argv)
 ALLOWED_HOSTS = [v.strip() for v in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,elwsam.pythonanywhere.com").split(",") if v.strip()]
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",

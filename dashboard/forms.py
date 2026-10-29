@@ -90,13 +90,13 @@ class SupervisorForm(forms.ModelForm):
             "phone": "رقم الهاتف (اسم الدخول)",
             "role": "الدور والصلاحيات الممنوحة",
             "factory": "المصنع المخصص له (لرؤية تقاريره فقط)",
-            "shift": "وردية المشرف في أسبوع بداية التدوير",
+            "shift": "الوردية المخصصة للمشرف",
             "is_active": "الحساب نشط ومفعل",
         }
         help_texts = {
             "factory": "اختر المصنع الذي يعمل به المشرف. لن يتمكن المشرف من استعراض أو إدخال أي تقارير إلا لهذا المصنع المخصص له فقط. (مسؤول النظام لا يحتاج لربطه بمصنع).",
             "role": "حدد ما إذا كان المشرف مسؤولاً عن الصيانة الدورية، أو الإنتاج والأعطال، أو الاثنين معاً.",
-            "shift": "حدد وردية المشرف في أسبوع البداية. إذا فعّلت التدوير الأسبوعي للمصنع، تنتقل ورديته تلقائيًا وفق الترتيب المحفوظ. وإلا تبقى ثابتة.",
+            "shift": "الوردية الأولى (صباحية: 7 ص - 3 م)، الوردية الثانية (مسائية: 3 م - 11 م)، الوردية الثالثة (ليلية: 11 م - 7 ص). ملاحظة: تقارير الصيانة الدورية مقتصرة على مشرف الوردية الصباحية فقط، والتقارير متاحة فقط خلال ساعات الوردية (8 ساعات).",
         }
     def clean_password(self):
         value = self.cleaned_data.get("password")
@@ -106,8 +106,13 @@ class SupervisorForm(forms.ModelForm):
         cleaned_data = super().clean()
         role = cleaned_data.get("role")
         factory = cleaned_data.get("factory")
+        shift = cleaned_data.get("shift")
         if role != User.Role.ADMIN and not factory:
             self.add_error("factory", "يجب تحديد المصنع المخصص للمشرف ليقتصر على رؤية تقارير هذا المصنع فقط.")
+        if role in {User.Role.MAINTENANCE_SUPERVISOR, User.Role.PRODUCTION_SUPERVISOR, User.Role.GENERAL_SUPERVISOR} and not shift:
+            self.add_error("shift", "يجب تحديد الوردية المخصصة للمشرف لتمكينه من تسجيل التقارير في ساعات الوردية المحددة.")
+        if role == User.Role.MAINTENANCE_SUPERVISOR and shift and shift != User.Shift.FIRST:
+            self.add_error("shift", "مشرف الصيانة الدورية يجب أن تكون ورديته الوردية الأولى (الصباحية: من 7:00 ص إلى 3:00 م) فقط، حيث تُجرى أعمال الصيانة في الوردية الصباحية.")
         return cleaned_data
     def save(self, commit=True):
         user = super().save(commit=False)

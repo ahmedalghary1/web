@@ -18,9 +18,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         GENERAL_SUPERVISOR = "GENERAL_SUPERVISOR", "⚡ مشرف عام للمصنع (صيانة وإنتاج لمصنعه فقط)"
 
     class Shift(models.TextChoices):
-        FIRST = "FIRST", "الوردية الأولى (صباحية)"
-        SECOND = "SECOND", "الوردية الثانية (مسائية)"
-        THIRD = "THIRD", "الوردية الثالثة (ليلية)"
+        FIRST = "FIRST", "الوردية الأولى (صباحية: 7 ص - 3 م)"
+        SECOND = "SECOND", "الوردية الثانية (مسائية: 3 م - 11 م)"
+        THIRD = "THIRD", "الوردية الثالثة (ليلية: 11 م - 7 ص)"
 
     phone = models.CharField("رقم الهاتف", max_length=30, unique=True, db_index=True)
     name = models.CharField("اسم المستخدم", max_length=150, blank=True, default="")
@@ -32,7 +32,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         choices=Shift.choices,
         null=True,
         blank=True,
-        help_text="حدد الوردية المخصصة للمشرف في المصنع ليظهر له تقرير الوردية السابقة للتأكيد تلقائياً."
+        help_text="حدد الوردية المخصصة للمشرف: صباحية (7 ص - 3 م)، مسائية (3 م - 11 م)، أو ليلية (11 م - 7 ص). لا يمكن تسجيل التقرير إلا خلال 8 ساعات ورديته فقط. وتقارير الصيانة مخصصة لمشرف الوردية الصباحية فقط."
     )
     is_active = models.BooleanField(default=True); is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
@@ -86,9 +86,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     def can_access_production(self):
         return self.is_superuser or self.role in {self.Role.ADMIN, self.Role.PRODUCTION_SUPERVISOR, self.Role.GENERAL_SUPERVISOR}
 
+    def get_effective_shift(self, day=None):
+        from accounts.shifts import get_user_effective_shift
+        return get_user_effective_shift(self, day)
+
     def __str__(self): return self.display_name
     def clean(self):
         from django.core.exceptions import ValidationError
         if self.role in {self.Role.MAINTENANCE_SUPERVISOR, self.Role.PRODUCTION_SUPERVISOR, self.Role.GENERAL_SUPERVISOR} and not self.factory_id:
             raise ValidationError({"factory": "يجب ربط المشرف بمصنع ليتمكن من متابعة تقاريره."})
+        if self.role == self.Role.MAINTENANCE_SUPERVISOR and self.shift and self.shift != self.Shift.FIRST:
+            raise ValidationError({"shift": "مشرف الصيانة الدورية يجب أن تكون ورديته الوردية الأولى (الصباحية: من 7 ص إلى 3 م) فقط، حيث تجرى أعمال الصيانة في الوردية الصباحية."})
 

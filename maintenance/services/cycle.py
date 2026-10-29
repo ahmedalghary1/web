@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -126,6 +127,16 @@ class MaintenanceCycleService:
     @classmethod
     @transaction.atomic
     def upsert_report(cls, supervisor, data):
+        if getattr(settings, "ENFORCE_SHIFT_HOURS", True) and not getattr(supervisor, "is_admin", supervisor.is_superuser or supervisor.role == supervisor.Role.ADMIN):
+            from accounts.shifts import get_user_effective_shift, is_within_shift_window, SHIFT_WINDOWS
+            shift = get_user_effective_shift(supervisor, data["report_date"])
+            if shift != supervisor.Shift.FIRST:
+                return SyncResult("rejected", reason="تقرير الصيانة يقوم بعمله مشرف الوردية الصباحية فقط.")
+            if not is_within_shift_window(supervisor.Shift.FIRST):
+                window_info = SHIFT_WINDOWS.get(supervisor.Shift.FIRST, {})
+                hours_text = window_info.get("hours_display", "من 7:00 صباحاً إلى 3:00 مساءً")
+                return SyncResult("rejected", reason=f"لا يمكن تسجيل أو إرسال تقرير الصيانة إلا خلال ساعات الوردية الصباحية ({hours_text}).")
+
         existing = MaintenanceReport.objects.select_for_update().filter(client_report_id=data["client_report_id"]).first()
         if existing:
             if existing.supervisor_id != supervisor.id or existing.factory_id != supervisor.factory_id: raise PermissionDenied("لا تملك صلاحية الوصول إلى هذا التقرير.")
