@@ -11,7 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
     factory = FactorySerializer(read_only=True)
     display_name = serializers.CharField(read_only=True)
     shift_display = serializers.CharField(source="get_shift_display", read_only=True)
-    class Meta: model = User; fields = ["id", "name", "phone", "display_name", "role", "factory", "shift", "shift_display"]
+    class Meta: model = User; fields = ["id", "name", "phone", "display_name", "role", "factory", "shift", "shift_display", "report_grace_hours"]
 class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs); data["user"] = UserSerializer(self.user).data; return data

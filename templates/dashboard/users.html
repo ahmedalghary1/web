@@ -6,31 +6,34 @@
 <div class="page-title">
   <div>
     <h1>إدارة المستخدمين والصلاحيات والورديات</h1>
-    <p>تحديد أدوار المشرفين وتخصيص الورديات (8 ساعات لكل وردية). تقارير الصيانة لمشرف الوردية الصباحية فقط، وباقي الورديات للإنتاج والأعطال.</p>
+    <p>تحديد أدوار المشرفين وتخصيص الورديات وفترات السماحية. تقارير الصيانة لمشرف الوردية الصباحية فقط، وباقي الورديات للإنتاج والأعطال.</p>
   </div>
   <a class="btn primary" href="{% url 'dashboard:user-add' %}">{% icon "plus" %} إضافة مستخدم / مشرف جديد</a>
 </div>
 
 <div style="background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border: 1px solid #bae6fd; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #0f172a;">
   <div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #0369a1; display: flex; align-items: center; gap: 6px;">
-    {% icon "clock" size="18" %} قواعد توقيت تسجيل التقارير ونظام الورديات (8 ساعات لكل وردية):
+    {% icon "clock" size="18" %} قواعد توقيت تسجيل التقارير وفترة السماحية بعد الوردية:
   </div>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 8px;">
     <div style="background: #ffffff; padding: 10px 12px; border-radius: 8px; border-right: 4px solid #16a34a; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
       <strong style="color: #16a34a;">الوردية الصباحية (7:00 ص - 3:00 م):</strong>
-      <div style="color: #475569; font-size: 12px; margin-top: 2px;">8 ساعات • تقرير الإنتاج والأعطال + <strong>تقرير الصيانة الدورية (حصرياً)</strong></div>
+      <div style="color: #475569; font-size: 12px; margin-top: 2px;">8 ساعات • إنتاج وأعطال + <strong>صيانة دورية (حصرياً)</strong></div>
+      <div style="color: #0369a1; font-size: 11px; margin-top: 3px;">+ فترة سماحية (افتراضياً ساعتان حتى 5:00 م)</div>
     </div>
     <div style="background: #ffffff; padding: 10px 12px; border-radius: 8px; border-right: 4px solid #ea580c; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
       <strong style="color: #ea580c;">الوردية المسائية (3:00 م - 11:00 م):</strong>
       <div style="color: #475569; font-size: 12px; margin-top: 2px;">8 ساعات • تقرير الإنتاج والأعطال يومياً</div>
+      <div style="color: #0369a1; font-size: 11px; margin-top: 3px;">+ فترة سماحية (افتراضياً ساعتان حتى 1:00 ص)</div>
     </div>
     <div style="background: #ffffff; padding: 10px 12px; border-radius: 8px; border-right: 4px solid #7c3aed; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
       <strong style="color: #7c3aed;">الوردية الليلية (11:00 م - 7:00 ص):</strong>
       <div style="color: #475569; font-size: 12px; margin-top: 2px;">8 ساعات • تقرير الإنتاج والأعطال يومياً</div>
+      <div style="color: #0369a1; font-size: 11px; margin-top: 3px;">+ فترة سماحية (افتراضياً ساعتان حتى 9:00 ص)</div>
     </div>
   </div>
-  <div style="margin-top: 8px; color: #64748b; font-size: 12px;">
-    ⚠️ <em>ملاحظة: لا يمكن للمشرف تسجيل أو إرسال تقرير الوردية إلا خلال الـ 8 ساعات المحددة لورديته فقط.</em>
+  <div style="margin-top: 8px; color: #475569; font-size: 12px;">
+    ⏱️ <em>يمكنك تعديل مدة السماحية لكل مشرف بشكل مستقل من زر (تعديل) بالأسفل لتناسب طبيعة كل مشرف. تنطبق المدة على تقارير الصيانة والإنتاج والأعطال.</em>
   </div>
 </div>
 
@@ -89,18 +92,21 @@
               </span>
               {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted); font-size: 11px;">الأساس: {{ u.get_shift_display }}</small>{% endif %}
               <small style="display:block; color:#2e7d32; font-size: 11px; margin-top: 2px;">(7:00 ص - 3:00 م)</small>
+              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+{{ u.report_grace_hours|default:2 }}س سماح</span>
             {% elif u.effective_shift_code == 'SECOND' or u.shift == 'SECOND' %}
               <span class="badge" style="background:#fff3e0; color:#bf360c; border-color:#ffcc80; font-weight: 600;">
                 {% icon "clock" size="14" %} {{ u.current_shift_display|default:u.get_shift_display }}
               </span>
               {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted); font-size: 11px;">الأساس: {{ u.get_shift_display }}</small>{% endif %}
               <small style="display:block; color:#d84315; font-size: 11px; margin-top: 2px;">(3:00 م - 11:00 م)</small>
+              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+{{ u.report_grace_hours|default:2 }}س سماح</span>
             {% elif u.effective_shift_code == 'THIRD' or u.shift == 'THIRD' %}
               <span class="badge" style="background:#ede7f6; color:#4a148c; border-color:#d1c4e9; font-weight: 600;">
                 {% icon "moon" size="14" %} {{ u.current_shift_display|default:u.get_shift_display }}
               </span>
               {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted); font-size: 11px;">الأساس: {{ u.get_shift_display }}</small>{% endif %}
               <small style="display:block; color:#6a1b9a; font-size: 11px; margin-top: 2px;">(11:00 م - 7:00 ص)</small>
+              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+{{ u.report_grace_hours|default:2 }}س سماح</span>
             {% else %}
               <span class="badge" style="background:#fee2e2; color:#991b1b; border-color:#fca5a5;">
                 {% icon "alert" size="14" %} غير محددة (مطلوب)

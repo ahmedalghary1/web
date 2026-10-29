@@ -32,7 +32,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         choices=Shift.choices,
         null=True,
         blank=True,
-        help_text="حدد الوردية المخصصة للمشرف: صباحية (7 ص - 3 م)، مسائية (3 م - 11 م)، أو ليلية (11 م - 7 ص). لا يمكن تسجيل التقرير إلا خلال 8 ساعات ورديته فقط. وتقارير الصيانة مخصصة لمشرف الوردية الصباحية فقط."
+        help_text="حدد الوردية المخصصة للمشرف: صباحية (7 ص - 3 م)، مسائية (3 م - 11 م)، أو ليلية (11 م - 7 ص). لا يمكن تسجيل التقرير إلا خلال ساعات ورديته وفترة السماح المحددة. وتقارير الصيانة مخصصة لمشرف الوردية الصباحية فقط."
+    )
+    report_grace_hours = models.PositiveSmallIntegerField(
+        "مدة السماحية بعد انتهاء الوردية (بالساعات)",
+        default=2,
+        help_text="عدد الساعات المسموح بها للمشرف لتسجيل أو إرسال التقرير بعد انتهاء ساعات الوردية (الافتراضي: ساعتان)."
     )
     is_active = models.BooleanField(default=True); is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
@@ -97,4 +102,6 @@ class User(AbstractBaseUser, PermissionsMixin):
             raise ValidationError({"factory": "يجب ربط المشرف بمصنع ليتمكن من متابعة تقاريره."})
         if self.role == self.Role.MAINTENANCE_SUPERVISOR and self.shift and self.shift != self.Shift.FIRST:
             raise ValidationError({"shift": "مشرف الصيانة الدورية يجب أن تكون ورديته الوردية الأولى (الصباحية: من 7 ص إلى 3 م) فقط، حيث تجرى أعمال الصيانة في الوردية الصباحية."})
+        if self.report_grace_hours is not None and self.report_grace_hours > 24:
+            raise ValidationError({"report_grace_hours": "مدة السماحية لا يمكن أن تتجاوز 24 ساعة."})
 
