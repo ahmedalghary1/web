@@ -37,7 +37,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     report_grace_hours = models.PositiveSmallIntegerField(
         "مدة السماحية بعد انتهاء الوردية (بالساعات)",
         default=2,
-        help_text="عدد الساعات المسموح بها للمشرف لتسجيل أو إرسال التقرير بعد انتهاء ساعات الوردية (الافتراضي: ساعتان)."
+        help_text="للتوافق مع البيانات القديمة فقط؛ المهلة الفعلية ثابتة بساعتين لكل تقرير."
     )
     is_active = models.BooleanField(default=True); is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True); updated_at = models.DateTimeField(auto_now=True)
@@ -47,32 +47,23 @@ class User(AbstractBaseUser, PermissionsMixin):
     def next_shift(self):
         if not self.shift:
             return None
-        cycle = {
-            self.Shift.FIRST: self.Shift.SECOND,
-            self.Shift.SECOND: self.Shift.THIRD,
-            self.Shift.THIRD: self.Shift.FIRST,
-        }
-        return cycle.get(self.shift)
+        from production.shift_rotation import next_shift_for
+        return next_shift_for(self)
 
     @property
     def previous_shift(self):
         if not self.shift:
             return None
-        cycle = {
-            self.Shift.FIRST: self.Shift.THIRD,
-            self.Shift.SECOND: self.Shift.FIRST,
-            self.Shift.THIRD: self.Shift.SECOND,
-        }
-        return cycle.get(self.shift)
+        from production.shift_rotation import DAILY_SHIFT_ORDER, effective_shift, rotation_for
+        rotation = rotation_for(self.factory)
+        current = effective_shift(self, rotation=rotation)
+        return DAILY_SHIFT_ORDER[(DAILY_SHIFT_ORDER.index(current) - 1) % 3]
 
     def get_next_shift_supervisor(self):
         if not self.factory or not self.next_shift:
             return None
-        return User.objects.filter(
-            factory=self.factory,
-            shift=self.next_shift,
-            is_active=True
-        ).first()
+        from production.shift_rotation import next_supervisor_for
+        return next_supervisor_for(self, self.factory)
 
     @property
     def display_name(self):
@@ -100,8 +91,4 @@ class User(AbstractBaseUser, PermissionsMixin):
         from django.core.exceptions import ValidationError
         if self.role in {self.Role.MAINTENANCE_SUPERVISOR, self.Role.PRODUCTION_SUPERVISOR, self.Role.GENERAL_SUPERVISOR} and not self.factory_id:
             raise ValidationError({"factory": "يجب ربط المشرف بمصنع ليتمكن من متابعة تقاريره."})
-        if self.role == self.Role.MAINTENANCE_SUPERVISOR and self.shift and self.shift != self.Shift.FIRST:
-            raise ValidationError({"shift": "مشرف الصيانة الدورية يجب أن تكون ورديته الوردية الأولى (الصباحية: من 7 ص إلى 3 م) فقط، حيث تجرى أعمال الصيانة في الوردية الصباحية."})
-        if self.report_grace_hours is not None and self.report_grace_hours > 24:
-            raise ValidationError({"report_grace_hours": "مدة السماحية لا يمكن أن تتجاوز 24 ساعة."})
 

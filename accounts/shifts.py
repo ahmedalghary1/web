@@ -88,11 +88,12 @@ def get_shift_range(shift_code, report_date, grace_hours=2):
     Calculates (shift_start_dt, shift_end_dt, window_end_dt) for a shift on report_date.
     All datetimes are timezone-aware in Africa/Cairo.
     """
-    start_time = SHIFT_START_TIMES.get(shift_code, time(7, 0))
+    if shift_code not in SHIFT_START_TIMES:
+        raise ValueError("Unknown shift")
+    start_time = SHIFT_START_TIMES[shift_code]
     shift_start = datetime.combine(report_date, start_time, tzinfo=CAIRO_TZ)
     shift_end = shift_start + timedelta(hours=8)
-    effective_grace = int(grace_hours) if grace_hours is not None else 2
-    window_end = shift_end + timedelta(hours=effective_grace)
+    window_end = shift_end + timedelta(hours=2)
     return shift_start, shift_end, window_end
 
 
@@ -108,26 +109,27 @@ def is_within_shift_window(shift_code, now=None, grace_hours=2, report_date=None
         return False
 
     now_dt = get_cairo_time(now)
-    effective_grace = int(grace_hours) if grace_hours is not None else 2
-
     if report_date is not None:
-        start_dt, _, end_dt = get_shift_range(shift_code, report_date, effective_grace)
-        if start_dt <= now_dt <= end_dt:
-            return True
-        # For night shift, report_date might be calendar day of handover morning
-        if shift_code == User.Shift.THIRD:
-            alt_start, _, alt_end = get_shift_range(shift_code, report_date - timedelta(days=1), effective_grace)
-            if alt_start <= now_dt <= alt_end:
-                return True
-        return False
+        start_dt, _, end_dt = get_shift_range(shift_code, report_date)
+        return start_dt <= now_dt <= end_dt
 
     # Check against shift window starting today or yesterday
     current_date = now_dt.date()
     for d in (current_date, current_date - timedelta(days=1)):
-        start_dt, _, end_dt = get_shift_range(shift_code, d, effective_grace)
+        start_dt, _, end_dt = get_shift_range(shift_code, d)
         if start_dt <= now_dt <= end_dt:
             return True
     return False
+
+
+def open_report_shift(user, now=None):
+    """Return the shift and start date currently open for this supervisor."""
+    now_dt = get_cairo_time(now)
+    for day in (now_dt.date() - timedelta(days=1), now_dt.date()):
+        shift = get_user_effective_shift(user, day)
+        if shift and is_within_shift_window(shift, now_dt, report_date=day):
+            return shift, day
+    return None, None
 
 
 def get_user_effective_shift(user, day=None):
@@ -137,11 +139,8 @@ def get_user_effective_shift(user, day=None):
     """
     if not user or not getattr(user, "shift", None):
         return None
-    try:
-        from production.shift_rotation import effective_shift
-        return effective_shift(user, day)
-    except Exception:
-        return getattr(user, "shift", None)
+    from production.shift_rotation import effective_shift
+    return effective_shift(user, day)
 
 
 def format_window_end_time(shift_code, report_date=None, grace_hours=2):
@@ -168,6 +167,6 @@ def get_shift_window_display(shift_code, grace_hours=2):
     info = SHIFT_WINDOWS.get(shift_code)
     if not info:
         return ""
-    grace = int(grace_hours) if grace_hours is not None else 2
+    grace = 2
     end_str = format_window_end_time(shift_code, grace_hours=grace)
     return f"{info['name']} ({info['hours_display']} + {grace} ساعة سماحية حتى {end_str})"

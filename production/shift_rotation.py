@@ -1,18 +1,23 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.utils import timezone
 
 from accounts.models import User
-from .models import FactoryShiftRotation
+from .models import FactoryShiftRotation, SupervisorHandoverRoute
 
 
-DEFAULT_ORDER = ("FIRST", "SECOND", "THIRD")
+DEFAULT_ORDER = ("FIRST", "THIRD", "SECOND")
+DAILY_SHIFT_ORDER = ("FIRST", "SECOND", "THIRD")
+DEFAULT_ROTATION_START = date(2026, 10, 30)
 
 
 def rotation_for(factory):
     if not factory:
         return None
-    return FactoryShiftRotation.objects.filter(factory=factory).first()
+    return FactoryShiftRotation.objects.filter(factory=factory).first() or FactoryShiftRotation(
+        factory=factory, first_shift="FIRST", second_shift="THIRD", third_shift="SECOND",
+        week_starts_on=4, effective_from=DEFAULT_ROTATION_START,
+    )
 
 
 def week_start(day, weekday):
@@ -45,8 +50,7 @@ def next_shift_for(user, day=None, rotation=None):
     current = shift_for_base(user.shift, day, rotation)
     if not current:
         return None
-    order = rotation.shift_order if rotation else DEFAULT_ORDER
-    return order[(order.index(current) + 1) % 3]
+    return DAILY_SHIFT_ORDER[(DAILY_SHIFT_ORDER.index(current) + 1) % 3]
 
 
 def next_supervisor_for(user, factory, day=None, rotation=None):
@@ -56,6 +60,11 @@ def next_supervisor_for(user, factory, day=None, rotation=None):
     next_shift = next_shift_for(user, day, rotation)
     if not next_shift:
         return None
+    route = SupervisorHandoverRoute.objects.select_related("receiver").filter(supervisor=user).first()
+    if route and route.receiver.is_active and route.receiver.factory_id == factory.pk and \
+            route.receiver.role in {User.Role.PRODUCTION_SUPERVISOR, User.Role.GENERAL_SUPERVISOR} and \
+            shift_for_base(route.receiver.shift, day, rotation) == next_shift:
+        return route.receiver
     candidates = User.objects.filter(
         factory=factory, is_active=True,
         role__in=[User.Role.PRODUCTION_SUPERVISOR, User.Role.GENERAL_SUPERVISOR],

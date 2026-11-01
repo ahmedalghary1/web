@@ -39,7 +39,7 @@ class WeeklyShiftRotationTests(TestCase):
         for week, week_shifts in enumerate(expected):
             day = self.friday + timedelta(days=7 * week)
             self.assertEqual(tuple(effective_shift(user, day, rotation) for user in self.supervisors), week_shifts)
-        self.assertEqual(receiver_for(self.supervisors[0], self.factory, self.friday), self.supervisors[2])
+        self.assertEqual(receiver_for(self.supervisors[0], self.factory, self.friday), self.supervisors[1])
 
     def test_dashboard_saves_rotation_and_bootstrap_uses_current_week(self):
         admin = User.objects.create_superuser("01099990009", "StrongPass!123")
@@ -60,7 +60,7 @@ class WeeklyShiftRotationTests(TestCase):
         bootstrap = api.get(reverse("production-api:bootstrap"))
         self.assertEqual(bootstrap.status_code, 200)
         self.assertEqual(bootstrap.data["user"]["shift"], "THIRD")
-        self.assertEqual(bootstrap.data["user"]["next_shift_supervisor"]["id"], self.supervisors[2].id)
+        self.assertEqual(bootstrap.data["user"]["next_shift_supervisor"]["id"], self.supervisors[1].id)
 
         payload = {
             "client_report_id": "2a7e3ecb-17da-40b8-8738-b5243e885ca5",
@@ -98,4 +98,4 @@ class WeeklyShiftRotationTests(TestCase):
         }, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         report = ProductionShiftReport.objects.get(factory=self.factory)
-        self.assertEqual(report.handover_to_supervisor, self.supervisors[2])
+        self.assertEqual(report.handover_to_supervisor, self.supervisors[1])

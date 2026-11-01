@@ -92,21 +92,21 @@
               </span>
               {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted); font-size: 11px;">الأساس: {{ u.get_shift_display }}</small>{% endif %}
               <small style="display:block; color:#2e7d32; font-size: 11px; margin-top: 2px;">(7:00 ص - 3:00 م)</small>
-              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+{{ u.report_grace_hours|default:2 }}س سماح</span>
+              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+2س سماح</span>
             {% elif u.effective_shift_code == 'SECOND' or u.shift == 'SECOND' %}
               <span class="badge" style="background:#fff3e0; color:#bf360c; border-color:#ffcc80; font-weight: 600;">
                 {% icon "clock" size="14" %} {{ u.current_shift_display|default:u.get_shift_display }}
               </span>
               {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted); font-size: 11px;">الأساس: {{ u.get_shift_display }}</small>{% endif %}
               <small style="display:block; color:#d84315; font-size: 11px; margin-top: 2px;">(3:00 م - 11:00 م)</small>
-              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+{{ u.report_grace_hours|default:2 }}س سماح</span>
+              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+2س سماح</span>
             {% elif u.effective_shift_code == 'THIRD' or u.shift == 'THIRD' %}
               <span class="badge" style="background:#ede7f6; color:#4a148c; border-color:#d1c4e9; font-weight: 600;">
                 {% icon "moon" size="14" %} {{ u.current_shift_display|default:u.get_shift_display }}
               </span>
               {% if u.has_shift_rotation %}<small style="display:block; color:var(--muted); font-size: 11px;">الأساس: {{ u.get_shift_display }}</small>{% endif %}
               <small style="display:block; color:#6a1b9a; font-size: 11px; margin-top: 2px;">(11:00 م - 7:00 ص)</small>
-              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+{{ u.report_grace_hours|default:2 }}س سماح</span>
+              <span class="badge muted" style="font-size:10px; margin-top:2px; display:inline-block;">+2س سماح</span>
             {% else %}
               <span class="badge" style="background:#fee2e2; color:#991b1b; border-color:#fca5a5;">
                 {% icon "alert" size="14" %} غير محددة (مطلوب)

@@ -12,7 +12,7 @@ from drf_spectacular.utils import extend_schema
 from assets.models import Asset, asset_type_order_expression
 from factories.models import Factory
 from accounts.models import User
-from accounts.shifts import is_within_shift_window, get_current_shift_by_time, SHIFT_WINDOWS
+from accounts.shifts import is_within_shift_window, get_current_shift_by_time, open_report_shift, SHIFT_WINDOWS
 from .models import (
     Product,
     MachineOperator,
@@ -60,6 +60,8 @@ class ProductionBootstrapView(APIView):
             return Response({"detail": "لا يوجد مصنع نشط بالنظام."}, status=status.HTTP_400_BAD_REQUEST)
 
         today = timezone.localdate()
+        open_shift, open_date = open_report_shift(user)
+        report_date = open_date or today
 
         # 1. Assets with production defaults
         assets = Asset.objects.filter(
@@ -78,14 +80,14 @@ class ProductionBootstrapView(APIView):
 
         # 4. Resolve shift info and next supervisor for current user
         rotation = rotation_for(factory)
-        user_shift = effective_shift(user, today, rotation)
+        user_shift = open_shift or effective_shift(user, today, rotation)
         next_shift = None
         next_shift_display = None
         next_supervisor = None
 
-        next_supervisor = receiver_for(user, factory, today)
+        next_supervisor = receiver_for(user, factory, report_date)
         if next_supervisor:
-            next_shift = next_shift_for(user, today, rotation) if rotation else next_supervisor.shift
+            next_shift = next_shift_for(user, report_date, rotation) if rotation else next_supervisor.shift
             next_shift_display = dict(User.Shift.choices).get(next_shift)
 
         pending_handover = pending_for(user, factory).select_related(
@@ -95,7 +97,7 @@ class ProductionBootstrapView(APIView):
         # 6. Today's reports
         today_reports = ProductionShiftReport.objects.filter(
             factory=factory,
-            report_date=today, supervisor=user
+            report_date=report_date, supervisor=user
         ).select_related("supervisor", "handover_to_supervisor").prefetch_related("machine_entries", "stoppages").order_by("-created_at")
 
         factories_list = [
@@ -104,7 +106,7 @@ class ProductionBootstrapView(APIView):
         ]
 
         payload = {
-            "server_date": str(today),
+            "server_date": str(report_date),
             "timezone": "Africa/Cairo",
             "factory": {
                 "id": factory.id,
@@ -120,7 +122,7 @@ class ProductionBootstrapView(APIView):
                 "shift": user_shift,
                 "shift_display": dict(User.Shift.choices).get(user_shift),
                 "shift_hours": SHIFT_WINDOWS.get(user_shift, {}).get("hours_display", ""),
-                "is_within_shift_window": is_within_shift_window(user_shift) if user_shift else False,
+                "is_within_shift_window": open_shift is not None,
                 "current_active_shift": get_current_shift_by_time(),
                 "next_shift": next_shift,
                 "next_shift_display": next_shift_display,
@@ -193,7 +195,7 @@ class ProductionSyncReportView(APIView):
                         {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
                         status=status.HTTP_403_FORBIDDEN,
                     )
-                if not is_within_shift_window(expected_shift):
+                if not is_within_shift_window(expected_shift, report_date=data["report_date"]):
                     window_info = SHIFT_WINDOWS.get(expected_shift, {})
                     shift_name = window_info.get("name", dict(User.Shift.choices).get(expected_shift, expected_shift))
                     hours_text = window_info.get("hours_display", "")
@@ -212,6 +214,8 @@ class ProductionSyncReportView(APIView):
                         {"detail": "لا يمكن تسجيل تقرير لوردية غير الوردية المعيّنة لهذا الحساب."},
                         status=status.HTTP_403_FORBIDDEN,
                     )
+            if is_admin_user and enforce_shifts and not is_within_shift_window(report_shift, report_date=data["report_date"]):
+                return Response({"detail": "انتهى وقت هذه الوردية؛ المهلة ساعتان فقط بعد نهايتها."}, status=status.HTTP_403_FORBIDDEN)
 
             # Serialize submissions within a factory so a handover cannot race a new draft.
             Factory.objects.select_for_update().get(pk=factory.pk)

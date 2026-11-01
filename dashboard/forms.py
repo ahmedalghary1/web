@@ -84,24 +84,21 @@ class SupervisorForm(forms.ModelForm):
     )
     class Meta:
         model = User
-        fields = ["name", "phone", "role", "factory", "shift", "report_grace_hours", "is_active"]
+        fields = ["name", "phone", "role", "factory", "shift", "is_active"]
         labels = {
             "name": "اسم المستخدم / المشرف",
             "phone": "رقم الهاتف (اسم الدخول)",
             "role": "الدور والصلاحيات الممنوحة",
             "factory": "المصنع المخصص له (لرؤية تقاريره فقط)",
             "shift": "الوردية المخصصة للمشرف",
-            "report_grace_hours": "مدة السماحية بعد انتهاء الوردية (بالساعات)",
             "is_active": "الحساب نشط ومفعل",
         }
         help_texts = {
             "factory": "اختر المصنع الذي يعمل به المشرف. لن يتمكن المشرف من استعراض أو إدخال أي تقارير إلا لهذا المصنع المخصص له فقط. (مسؤول النظام لا يحتاج لربطه بمصنع).",
             "role": "حدد ما إذا كان المشرف مسؤولاً عن الصيانة الدورية، أو الإنتاج والأعطال، أو الاثنين معاً.",
             "shift": "الوردية الأولى (صباحية: 7 ص - 3 م)، الوردية الثانية (مسائية: 3 م - 11 م)، الوردية الثالثة (ليلية: 11 م - 7 ص). ملاحظة: تقارير الصيانة الدورية مقتصرة على مشرف الوردية الصباحية فقط.",
-            "report_grace_hours": "عدد الساعات المسموح بها للمشرف لإرسال التقرير بعد انتهاء الوردية (الافتراضي: ساعتان). يمكنك تخصيص هذه المدة لكل مشرف، وتنطبق على تقارير الإنتاج والأعطال والصيانة.",
         }
         widgets = {
-            "report_grace_hours": forms.NumberInput(attrs={"min": "0", "max": "24", "step": "1", "placeholder": "2"}),
         }
     def clean_password(self):
         value = self.cleaned_data.get("password")
@@ -116,8 +113,6 @@ class SupervisorForm(forms.ModelForm):
             self.add_error("factory", "يجب تحديد المصنع المخصص للمشرف ليقتصر على رؤية تقارير هذا المصنع فقط.")
         if role in {User.Role.MAINTENANCE_SUPERVISOR, User.Role.PRODUCTION_SUPERVISOR, User.Role.GENERAL_SUPERVISOR} and not shift:
             self.add_error("shift", "يجب تحديد الوردية المخصصة للمشرف لتمكينه من تسجيل التقارير في ساعات الوردية المحددة.")
-        if role == User.Role.MAINTENANCE_SUPERVISOR and shift and shift != User.Shift.FIRST:
-            self.add_error("shift", "مشرف الصيانة الدورية يجب أن تكون ورديته الوردية الأولى (الصباحية: من 7:00 ص إلى 3:00 م) فقط، حيث تُجرى أعمال الصيانة في الوردية الصباحية.")
         return cleaned_data
     def save(self, commit=True):
         user = super().save(commit=False)

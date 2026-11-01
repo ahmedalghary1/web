@@ -61,9 +61,6 @@
     {% if rotation_form.non_field_errors %}<div style="color:#dc2626; grid-column:1/-1;">{{ rotation_form.non_field_errors }}</div>{% endif %}
     <button type="submit" class="btn primary">{% icon "check" %} حفظ التدوير</button>
   </form>
-  {% if rotation %}
-    <form method="post" style="margin-top:12px;">{% csrf_token %}<input type="hidden" name="action" value="disable_rotation"><button class="btn ghost" type="submit">إيقاف التدوير والعودة للورديات الثابتة</button></form>
-  {% endif %}
   {% if assignments %}
     <div class="table-wrap" style="margin-top:18px;"><table><thead><tr><th>المشرف</th><th>وردية أسبوع البداية</th><th>هذا الأسبوع</th><th>الأسبوع القادم</th></tr></thead><tbody>
     {% for assignment in assignments %}<tr><td>{{ assignment.name }}</td><td>{{ assignment.base }}</td><td>{{ assignment.current }}</td><td>{{ assignment.next }}</td></tr>{% endfor %}

@@ -85,7 +85,7 @@ def get_active_factory_context(request):
 def handover_routes(request):
     from .models import FactoryShiftRotation, SupervisorHandoverRoute
     from .forms import FactoryShiftRotationForm, SupervisorHandoverRouteForm
-    from .shift_rotation import effective_shift, week_start
+    from .shift_rotation import effective_shift, week_start, rotation_for
     from accounts.models import User
     from django.db import transaction
     factory, factories, is_admin = get_active_factory_context(request)
@@ -96,12 +96,7 @@ def handover_routes(request):
         factory = getattr(request.user, "factory", None)
         factories = [factory] if factory else []
 
-    rotation = FactoryShiftRotation.objects.filter(factory=factory).first() if factory else None
-    if request.method == "POST" and request.POST.get("action") == "disable_rotation" and rotation:
-        rotation.delete()
-        messages.success(request, "تم إيقاف التدوير الأسبوعي والعودة إلى الورديات الثابتة.")
-        redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin else "")
-        return redirect(redirect_url)
+    rotation = rotation_for(factory)
     rotation_post = request.method == "POST" and request.POST.get("action") == "rotation"
     rotation_form = FactoryShiftRotationForm(
         request.POST if rotation_post else None,
@@ -116,6 +111,8 @@ def handover_routes(request):
         messages.success(request, "تم حفظ تدوير الورديات الأسبوعي للمصنع.")
         redirect_url = reverse("production:handover_routes") + (f"?factory={factory.id}" if is_admin else "")
         return redirect(redirect_url)
+    if rotation_post and rotation_form.errors:
+        rotation = rotation_for(factory)
 
     if request.method == "POST" and factory and request.POST.get("action") == "delete":
         route_id = request.POST.get("route_id")

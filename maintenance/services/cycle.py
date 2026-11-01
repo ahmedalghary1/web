@@ -127,12 +127,12 @@ class MaintenanceCycleService:
     @classmethod
     @transaction.atomic
     def upsert_report(cls, supervisor, data):
-        if getattr(settings, "ENFORCE_SHIFT_HOURS", True) and not getattr(supervisor, "is_admin", supervisor.is_superuser or supervisor.role == supervisor.Role.ADMIN):
+        if getattr(settings, "ENFORCE_SHIFT_HOURS", True):
             from accounts.shifts import get_user_effective_shift, is_within_shift_window, SHIFT_WINDOWS
             shift = get_user_effective_shift(supervisor, data["report_date"])
-            if shift != supervisor.Shift.FIRST:
+            if not supervisor.is_admin and shift != supervisor.Shift.FIRST:
                 return SyncResult("rejected", reason="تقرير الصيانة يقوم بعمله مشرف الوردية الصباحية فقط.")
-            if not is_within_shift_window(supervisor.Shift.FIRST):
+            if not is_within_shift_window(supervisor.Shift.FIRST, report_date=data["report_date"]):
                 window_info = SHIFT_WINDOWS.get(supervisor.Shift.FIRST, {})
                 hours_text = window_info.get("hours_display", "من 7:00 صباحاً إلى 3:00 مساءً")
                 return SyncResult("rejected", reason=f"لا يمكن تسجيل أو إرسال تقرير الصيانة إلا خلال ساعات الوردية الصباحية ({hours_text}).")

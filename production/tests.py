@@ -35,6 +35,7 @@ class ProductionAPITestCase(TestCase):
             name="م. أحمد مشرف",
             role=User.Role.PRODUCTION_SUPERVISOR,
             factory=self.factory,
+            shift=User.Shift.FIRST,
         )
         self.supervisor2 = User.objects.create_user(
             phone="01111111112",
@@ -42,6 +43,7 @@ class ProductionAPITestCase(TestCase):
             name="م. محمود مستلم",
             role=User.Role.PRODUCTION_SUPERVISOR,
             factory=self.factory,
+            shift=User.Shift.SECOND,
         )
 
 
@@ -769,8 +771,8 @@ class ProductionAPITestCase(TestCase):
         response = self.client.post(reverse("production-api:sync-shift-reports"), self.sync_payload(
             {"asset_id": self.asset1.pk, "current_cavities": 9}, general_notes="تقرير من هاتف آخر",
         ), format="json")
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.data["client_report_id"], str(original_id))
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("وردية غير الوردية", response.data["detail"])
         report.refresh_from_db()
         entry.refresh_from_db()
         self.assertEqual(report.client_report_id, original_id)

@@ -48,8 +48,8 @@ class ShiftHoursLogicTests(TestCase):
 
     def test_is_within_shift_window(self):
         day = timezone.localdate()
-        morning_time = datetime.combine(day, time(9, 0), tzinfo=CAIRO_TZ)
-        evening_time = datetime.combine(day, time(17, 0), tzinfo=CAIRO_TZ)
+        morning_time = datetime.combine(day, time(10, 0), tzinfo=CAIRO_TZ)
+        evening_time = datetime.combine(day, time(17, 1), tzinfo=CAIRO_TZ)
         night_time = datetime.combine(day, time(2, 0), tzinfo=CAIRO_TZ)
 
         # Morning
@@ -136,7 +136,7 @@ class ProductionShiftHoursEnforcementTests(TestCase):
     def test_morning_supervisor_blocked_during_evening_hours(self):
         client = APIClient()
         client.force_authenticate(user=self.morning_sup)
-        evening_dt = datetime.combine(self.today, time(17, 0), tzinfo=CAIRO_TZ)
+        evening_dt = datetime.combine(self.today, time(17, 1), tzinfo=CAIRO_TZ)
         from unittest.mock import patch
         with patch("django.utils.timezone.localtime", return_value=evening_dt):
             res = client.post(reverse("production-api:sync-shift-reports"), self._sync_payload("FIRST"), format="json")
@@ -170,7 +170,7 @@ class ProductionShiftHoursEnforcementTests(TestCase):
         night_dt = datetime.combine(self.today, time(2, 0), tzinfo=CAIRO_TZ)
         from unittest.mock import patch
         with patch("django.utils.timezone.localtime", return_value=night_dt):
-            res = client.post(reverse("production-api:sync-shift-reports"), self._sync_payload("THIRD"), format="json")
+            res = client.post(reverse("production-api:sync-shift-reports"), self._sync_payload("THIRD", self.today - timedelta(days=1)), format="json")
             self.assertEqual(res.status_code, 200)
 
     def test_night_supervisor_blocked_during_morning_hours(self):
@@ -184,15 +184,15 @@ class ProductionShiftHoursEnforcementTests(TestCase):
             self.assertIn("لا يمكن تسجيل أو إرسال تقرير الوردية الثالثة (ليلية)", res.data["detail"])
             self.assertIn("من 11:00 مساءً إلى 7:00 صباحاً", res.data["detail"])
 
-    def test_admin_can_submit_any_shift_anytime(self):
+    def test_admin_is_bound_by_the_report_window(self):
         client = APIClient()
         client.force_authenticate(user=self.admin)
-        evening_dt = datetime.combine(self.today, time(17, 0), tzinfo=CAIRO_TZ)
+        evening_dt = datetime.combine(self.today, time(17, 1), tzinfo=CAIRO_TZ)
         from unittest.mock import patch
         with patch("django.utils.timezone.localtime", return_value=evening_dt):
-            # Admin submitting morning shift report during evening hours
+            # Admin reports use the same two-hour deadline.
             res = client.post(reverse("production-api:sync-shift-reports"), self._sync_payload("FIRST"), format="json")
-            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.status_code, 403)
 
 
 @override_settings(ENFORCE_SHIFT_HOURS=True)
@@ -249,7 +249,7 @@ class MaintenanceShiftHoursEnforcementTests(TestCase):
             self.assertEqual(result.status, "synced")
 
     def test_morning_supervisor_blocked_during_evening_hours(self):
-        evening_dt = datetime.combine(self.today, time(16, 0), tzinfo=CAIRO_TZ)
+        evening_dt = datetime.combine(self.today, time(17, 1), tzinfo=CAIRO_TZ)
         from unittest.mock import patch
         with patch("django.utils.timezone.localtime", return_value=evening_dt):
             result = MaintenanceCycleService.upsert_report(self.morning_maint_sup, self._maint_payload())
@@ -291,8 +291,7 @@ class SupervisorFormShiftValidationTests(TestCase):
     def setUp(self):
         self.factory, _ = Factory.objects.get_or_create(code="F1", defaults={"name": "مصنع 1"})
 
-    def test_maintenance_supervisor_must_be_first_shift(self):
-        # Trying to assign SECOND shift to MAINTENANCE_SUPERVISOR should fail
+    def test_maintenance_supervisor_can_rotate_from_second_shift(self):
         form = SupervisorForm({
             "name": "مشرف صيانة",
             "phone": "01033330001",
@@ -302,9 +301,7 @@ class SupervisorFormShiftValidationTests(TestCase):
             "is_active": True,
             "password": "StrongPassword!123",
         })
-        self.assertFalse(form.is_valid())
-        self.assertIn("shift", form.errors)
-        self.assertIn("الوردية الأولى (الصباحية", form.errors["shift"][0])
+        self.assertTrue(form.is_valid(), form.errors)
 
     def test_maintenance_supervisor_valid_with_first_shift(self):
         form = SupervisorForm({
