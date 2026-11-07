@@ -14,10 +14,10 @@ DEFAULT_ROTATION_START = date(2026, 10, 30)
 def rotation_for(factory):
     if not factory:
         return None
-    return FactoryShiftRotation.objects.filter(factory=factory).first() or FactoryShiftRotation(
-        factory=factory, first_shift="FIRST", second_shift="THIRD", third_shift="SECOND",
-        week_starts_on=4, effective_from=DEFAULT_ROTATION_START,
-    )
+    # A user's assigned shift stays in force until an administrator actually
+    # saves a rotation schedule. An unsaved fallback silently changes access
+    # every week, including blocking a morning maintenance supervisor.
+    return FactoryShiftRotation.objects.filter(factory=factory).first()
 
 
 def week_start(day, weekday):

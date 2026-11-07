@@ -57,10 +57,16 @@ class BootstrapView(APIView):
         templates_qs = ChecklistTemplate.objects.filter(is_active=True).prefetch_related(active_items)
 
         payload = current_payload(request.user)
+        effective_shift = get_user_effective_shift(request.user)
+        can_submit = (not settings.ENFORCE_SHIFT_HOURS or request.user.is_admin
+                      or effective_shift == User.Shift.FIRST)
+        shift_label = dict(User.Shift.choices).get(effective_shift, "غير محددة")
         payload.update(
             user=UserSerializer(request.user).data,
-            can_submit_report=(not settings.ENFORCE_SHIFT_HOURS or request.user.is_admin
-                               or get_user_effective_shift(request.user) == User.Shift.FIRST),
+            can_submit_report=can_submit,
+            effective_shift=effective_shift,
+            maintenance_denial_reason=("" if can_submit else
+                f"الصيانة مخصصة للوردية الصباحية. الوردية الحالية للحساب في الخادم: {shift_label}. راجع تعيين الوردية أو جدول التدوير المحفوظ للمصنع."),
             active_assets=AssetSerializer(MaintenanceCycleService.active_assets(request.user.factory), many=True).data,
             checklist_templates=ChecklistTemplateSerializer(templates_qs, many=True).data
         )

@@ -114,3 +114,40 @@ class ApiSecurityTests(TestCase):
             response = self.client.post("/api/v1/mobile/sync/reports/", {"reports": [payload]}, format="json")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.data["results"][0]["status"], "synced")
+
+    @override_settings(ENFORCE_SHIFT_HOURS=True)
+    def test_assigned_morning_maintenance_is_not_silently_rotated_without_a_schedule(self):
+        from unittest.mock import patch
+        from datetime import date
+        from production.models import FactoryShiftRotation
+        self.assertFalse(FactoryShiftRotation.objects.filter(factory=self.f1).exists())
+        self.user.shift = User.Shift.FIRST
+        self.user.save()
+        # The old implicit schedule changed FIRST to THIRD on this week.
+        morning = datetime(2026, 11, 7, 10, 0, tzinfo=ZoneInfo("Africa/Cairo"))
+        self.auth()
+        with patch("django.utils.timezone.localtime", return_value=morning):
+            boot = self.client.get("/api/v1/mobile/bootstrap/")
+            self.assertEqual(boot.status_code, 200)
+            self.assertTrue(boot.data["can_submit_report"])
+            self.assertEqual(boot.data["effective_shift"], User.Shift.FIRST)
+            self.assertEqual(boot.data["maintenance_denial_reason"], "")
+            response = self.client.post("/api/v1/mobile/sync/reports/", {"reports": [self.payload(date=date(2026, 11, 7))]}, format="json")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["results"][0]["status"], "synced")
+
+    @override_settings(ENFORCE_SHIFT_HOURS=True)
+    def test_saved_rotation_denial_explains_actual_shift_instead_of_claiming_time_expired(self):
+        from unittest.mock import patch
+        from datetime import date
+        from production.models import FactoryShiftRotation
+        FactoryShiftRotation.objects.create(factory=self.f1, effective_from=date(2026, 10, 30),
+                                           first_shift="FIRST", second_shift="THIRD", third_shift="SECOND")
+        self.user.shift = User.Shift.FIRST
+        self.user.save()
+        self.auth()
+        with patch("django.utils.timezone.localtime", return_value=datetime(2026, 11, 7, 10, tzinfo=ZoneInfo("Africa/Cairo"))):
+            boot = self.client.get("/api/v1/mobile/bootstrap/")
+            self.assertFalse(boot.data["can_submit_report"])
+            self.assertEqual(boot.data["effective_shift"], User.Shift.THIRD)
+            self.assertIn(dict(User.Shift.choices)[User.Shift.THIRD], boot.data["maintenance_denial_reason"])

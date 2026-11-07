@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
@@ -9,7 +9,7 @@ from accounts.models import User
 from factories.models import Factory
 from production.handover import receiver_for
 from production.models import FactoryShiftRotation, ProductionShiftReport
-from production.shift_rotation import effective_shift, week_start
+from production.shift_rotation import effective_shift, week_start, rotation_for
 
 
 class WeeklyShiftRotationTests(TestCase):
@@ -24,6 +24,12 @@ class WeeklyShiftRotationTests(TestCase):
             for index, shift in enumerate(("FIRST", "SECOND", "THIRD"), 1)
         ]
         self.friday = week_start(timezone.localdate(), 4)
+
+    def test_no_saved_rotation_keeps_assigned_shifts_in_later_weeks(self):
+        self.assertIsNone(rotation_for(self.factory))
+        for day in (date(2026, 10, 30), date(2026, 11, 7), date(2026, 11, 15), date(2027, 1, 1)):
+            self.assertEqual(tuple(effective_shift(user, day) for user in self.supervisors),
+                             ("FIRST", "SECOND", "THIRD"))
 
     def test_friday_rotation_follows_configured_order_for_all_three_supervisors(self):
         rotation = FactoryShiftRotation.objects.create(
