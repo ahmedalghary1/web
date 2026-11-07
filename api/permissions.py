@@ -8,12 +8,17 @@ class IsMaintenanceSupervisor(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        if not (
-            user.is_authenticated
-            and user.is_active
-            and user.factory_id
-            and user.can_access_maintenance
-        ):
+        if not user.is_authenticated:
+            self.message = "سجّل الدخول بالحساب صاحب التقرير أولًا."
+            return False
+        if not user.is_active:
+            self.message = "هذا الحساب موقوف. تواصل مع مسؤول النظام."
+            return False
+        if not user.factory_id:
+            self.message = "الحساب غير مرتبط بمصنع. يجب تحديد المصنع من لوحة التحكم."
+            return False
+        if not user.can_access_maintenance:
+            self.message = "الحساب لا يملك صلاحية الصيانة. يلزم دور مشرف صيانة أو مشرف عام للمصنع."
             return False
 
         if getattr(user, "is_admin", user.is_superuser or user.role == User.Role.ADMIN):

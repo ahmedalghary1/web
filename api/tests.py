@@ -98,3 +98,19 @@ class ApiSecurityTests(TestCase):
             self.assertFalse(boot.data["can_submit_report"])
             self.assertEqual(boot.data["report"]["client_report_id"], payload["client_report_id"])
             self.assertEqual(self.client.post("/api/v1/mobile/reports/", payload, format="json").status_code, 403)
+
+    @override_settings(ENFORCE_SHIFT_HOURS=True)
+    def test_combined_app_general_supervisor_can_submit_maintenance_during_assigned_morning(self):
+        from unittest.mock import patch
+        from production.models import FactoryShiftRotation
+        FactoryShiftRotation.objects.create(factory=self.f1, effective_from=timezone.localdate())
+        self.general.shift = User.Shift.FIRST
+        self.general.save()
+        self.auth(self.general)
+        payload = self.payload()
+        morning = datetime.fromisoformat(payload["started_at_device"])
+        with patch("django.utils.timezone.localtime", return_value=morning):
+            self.assertTrue(self.client.get("/api/v1/mobile/bootstrap/").data["can_submit_report"])
+            response = self.client.post("/api/v1/mobile/sync/reports/", {"reports": [payload]}, format="json")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["results"][0]["status"], "synced")

@@ -8,3 +8,5 @@ staticfiles/
 .coverage
 htmlcov/
 .pytest_cache/
+media/
+*.log

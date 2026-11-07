@@ -47,6 +47,7 @@
   </nav>
   {% endif %}
   <div class="sidebar-foot">
+    {% if request.user.is_admin %}<a class="account-link" href="{% url 'dashboard:app-updates' %}">تحديثات التطبيق والأجهزة</a>{% endif %}
     <a class="account-link {% if current == 'account' %}active{% endif %}" href="{% url 'dashboard:account' %}">
       <span class="user-avatar">{{ request.user.display_name|slice:':2' }}</span>
       <span><b>{{ request.user.display_name }}</b><small>

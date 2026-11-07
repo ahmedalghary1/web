@@ -1,7 +1,9 @@
 from django.urls import path
 from dashboard import views
+from updates.dashboard import releases
 app_name = "dashboard"
 urlpatterns = [
+    path("app-updates/", releases, name="app-updates"),
     path("", views.home, name="home"),
     path("factories/", views.factories, name="factories"),
     path("assets/", views.asset_list, name="assets"),

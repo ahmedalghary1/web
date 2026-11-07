@@ -16,7 +16,7 @@ ENFORCE_SHIFT_HOURS = env_bool("ENFORCE_SHIFT_HOURS", "test" not in sys.argv)
 ALLOWED_HOSTS = [v.strip() for v in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,elwsam.pythonanywhere.com").split(",") if v.strip()]
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "corsheaders", "rest_framework", "rest_framework_simplejwt", "drf_spectacular", "accounts", "factories", "assets", "maintenance", "api", "dashboard", "production",
+    "corsheaders", "rest_framework", "rest_framework_simplejwt", "drf_spectacular", "accounts", "factories", "assets", "maintenance", "api", "dashboard", "production", "updates",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "corsheaders.middleware.CorsMiddleware", "django.contrib.sessions.middleware.SessionMiddleware",
@@ -36,6 +36,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 LANGUAGE_CODE = "ar"; TIME_ZONE = "Africa/Cairo"; USE_I18N = True; USE_TZ = True
 STATIC_URL = "static/"; STATIC_ROOT = BASE_DIR / "staticfiles"; STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", BASE_DIR / "media"))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"; AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"; LOGIN_REDIRECT_URL = "dashboard:home"; LOGOUT_REDIRECT_URL = "login"
 CORS_ALLOWED_ORIGINS = [v.strip() for v in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if v.strip()]
