@@ -12,7 +12,7 @@ class UserSerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(read_only=True)
     shift_display = serializers.CharField(source="get_shift_display", read_only=True)
     report_grace_hours = serializers.SerializerMethodField()
-    def get_report_grace_hours(self, obj): return 2
+    def get_report_grace_hours(self, obj) -> int: return 2
     class Meta: model = User; fields = ["id", "name", "phone", "display_name", "role", "factory", "shift", "shift_display", "report_grace_hours"]
 class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):

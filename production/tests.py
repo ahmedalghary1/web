@@ -14,6 +14,7 @@ from accounts.models import User
 from factories.models import Factory
 from assets.models import Asset
 from production.models import (
+    FactoryShiftRotation,
     SupervisorHandoverRoute,
     Product,
     MachineOperator,
@@ -29,6 +30,9 @@ class ProductionAPITestCase(TestCase):
         self.client = APIClient()
         self.factory, _ = Factory.objects.get_or_create(code="F1", defaults={"name": "مصنع النقاء للبلاستيك"})
         
+        # This suite tests report behavior within the first rotation week.
+        # Pin its anchor so the machine's current calendar week cannot change roles.
+        FactoryShiftRotation.objects.create(factory=self.factory, effective_from=timezone.localdate())
         self.supervisor1 = User.objects.create_user(
             phone="01111111111",
             password="password123",

@@ -7,14 +7,15 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from factories.models import Factory
 from assets.models import Asset
-from .models import SupervisorHandoverRoute, ProductionShiftReport, MachineProductionEntry, ProductionStoppage
+from .models import FactoryShiftRotation, SupervisorHandoverRoute, ProductionShiftReport, MachineProductionEntry, ProductionStoppage
 
 
 class HandoverWorkflowTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.factory = Factory.objects.create(name="التسليم", code="HANDOVER")
-        cls.users = [User.objects.create_user(phone=f"review{i}", name=f"مشرف {i}", factory=cls.factory, role="PRODUCTION_SUPERVISOR", shift=shift) for i, shift in enumerate(["FIRST", "SECOND", "THIRD"])]
+        FactoryShiftRotation.objects.create(factory=cls.factory, effective_from=timezone.localdate())
+        cls.users = [User.objects.create_user(phone=f"review{i}", name=f"مشرف {i}", factory=cls.factory, role="PRODUCTION_SUPERVISOR", shift=shift) for i, shift in enumerate(["FIRST", "SECOND", "SECOND"])]
         cls.admin = User.objects.create_superuser(phone="review-admin")
         cls.other_factory = Factory.objects.create(name="آخر", code="OTHER-HANDOVER")
         cls.outsider = User.objects.create_user(phone="outside", factory=cls.other_factory, role="PRODUCTION_SUPERVISOR")
@@ -23,7 +24,7 @@ class HandoverWorkflowTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.sender, self.receiver, self.third = self.users
-        # Deliberately differs from the automatic next-shift order.
+        # Choose the explicit recipient among two supervisors on the next shift.
         SupervisorHandoverRoute.objects.create(supervisor=self.sender, receiver=self.third)
 
     def report(self, **kwargs):
@@ -58,7 +59,7 @@ class HandoverWorkflowTests(TestCase):
 
     def test_reject_requires_reason_and_unlocks_next_report(self):
         report = self.report()
-        self.assertEqual(self.sync(self.third, shift="THIRD").status_code, 409)
+        self.assertEqual(self.sync(self.third, shift="SECOND").status_code, 409)
         for notes in ["", "   "]:
             self.assertEqual(self.decide(self.third, report, "REJECT", notes).status_code, 400)
         self.assertEqual(self.decide(self.third, report, "REJECT", "اختلاف الكمية").status_code, 200)
@@ -69,7 +70,7 @@ class HandoverWorkflowTests(TestCase):
         report.refresh_from_db()
         self.assertEqual(report.handover_confirmed_at, timestamp)
         self.assertEqual(self.decide(self.third, report).status_code, 400)
-        self.assertEqual(self.sync(self.third, shift="THIRD").status_code, 200)
+        self.assertEqual(self.sync(self.third, shift="SECOND").status_code, 200)
 
     def test_accept_and_permissions_and_immutable_submitted_report(self):
         report = self.report(general_notes="أصلي")
@@ -80,7 +81,7 @@ class HandoverWorkflowTests(TestCase):
         report.refresh_from_db()
         self.assertEqual(report.general_notes, "أصلي")
         self.assertEqual(self.decide(self.third, report).status_code, 200)
-        self.assertEqual(self.sync(self.third, shift="THIRD").status_code, 200)
+        self.assertEqual(self.sync(self.third, shift="SECOND").status_code, 200)
 
     def test_oldest_pending_first_and_no_status_forgery(self):
         first = self.report(report_date=timezone.localdate() - timedelta(days=2))
@@ -89,7 +90,7 @@ class HandoverWorkflowTests(TestCase):
         data = self.client.get(reverse("production-api:bootstrap")).data
         self.assertEqual(data["pending_handover"]["id"], first.pk)
         self.decide(self.third, first)
-        self.assertEqual(self.sync(self.third, shift="THIRD").status_code, 409)
+        self.assertEqual(self.sync(self.third, shift="SECOND").status_code, 409)
         self.assertEqual(self.sync(self.receiver, shift="SECOND", status="CONFIRMED").status_code, 400)
         self.assertEqual(self.sync(self.receiver, shift="SECOND", status="PENDING_HANDOVER", completed_at_device=timezone.now().isoformat()).status_code, 400)
 

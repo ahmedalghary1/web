@@ -1,4 +1,7 @@
 import logging
+from django.conf import settings
+from accounts.shifts import get_user_effective_shift
+from accounts.models import User
 from django.db import IntegrityError
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -56,6 +59,8 @@ class BootstrapView(APIView):
         payload = current_payload(request.user)
         payload.update(
             user=UserSerializer(request.user).data,
+            can_submit_report=(not settings.ENFORCE_SHIFT_HOURS or request.user.is_admin
+                               or get_user_effective_shift(request.user) == User.Shift.FIRST),
             active_assets=AssetSerializer(MaintenanceCycleService.active_assets(request.user.factory), many=True).data,
             checklist_templates=ChecklistTemplateSerializer(templates_qs, many=True).data
         )

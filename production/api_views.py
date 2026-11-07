@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiTypes, extend_schema
 
 from assets.models import Asset, asset_type_order_expression
 from factories.models import Factory
@@ -38,6 +38,7 @@ from .shift_rotation import effective_shift, next_shift_for, rotation_for
 class ProductionBootstrapView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         user = request.user
         if not getattr(user, "can_access_production", True):

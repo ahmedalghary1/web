@@ -162,7 +162,7 @@ class ProductionShiftReport(models.Model):
         return f"تقرير إنتاج {self.factory.name} - {self.get_shift_display()} ({self.report_date})"
 
     @property
-    def total_production_weight_kg(self):
+    def total_production_weight_kg(self) -> float:
         return sum(entry.final_production_weight_kg for entry in self.machine_entries.all())
 
     @property
@@ -177,11 +177,11 @@ class ProductionShiftReport(models.Model):
         return sorted(totals.items())
 
     @property
-    def changed_products_count(self):
+    def changed_products_count(self) -> int:
         return self.machine_entries.filter(product_changed=True).count()
 
     @property
-    def changed_operators_count(self):
+    def changed_operators_count(self) -> int:
         return self.machine_entries.filter(operator_changed=True).count()
 
 

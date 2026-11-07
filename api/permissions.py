@@ -19,6 +19,10 @@ class IsMaintenanceSupervisor(BasePermission):
         if getattr(user, "is_admin", user.is_superuser or user.role == User.Role.ADMIN):
             return True
 
+        # Reading a factory report does not require the current morning shift.
+        if request.method in {"GET", "HEAD", "OPTIONS"}:
+            return True
+
         if getattr(settings, "ENFORCE_SHIFT_HOURS", True):
             shift = get_user_effective_shift(user)
             if shift != User.Shift.FIRST:

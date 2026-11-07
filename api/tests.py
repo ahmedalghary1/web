@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from django.test import TestCase
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 from accounts.models import User
@@ -54,3 +55,46 @@ class ApiSecurityTests(TestCase):
         self.auth(); response=self.client.post("/api/v1/mobile/current-maintenance/select/",{"asset_id":self.other.id},format="json"); self.assertEqual(response.status_code,400)
     def test_dashboard_is_admin_only(self):
         self.client.force_authenticate(user=None); self.client.login(phone=self.user.phone,password="StrongPass!123"); self.assertEqual(self.client.get("/").status_code,302); self.client.logout(); self.client.login(phone=self.admin.phone,password="StrongPass!123"); self.assertEqual(self.client.get("/").status_code,200)
+
+    def test_switching_jwt_accounts_returns_new_identity_and_factory_report(self):
+        payload = self.payload()
+        self.auth()
+        created = self.client.post("/api/v1/mobile/reports/", payload, format="json")
+        self.assertEqual(created.status_code, 201)
+        for user in (self.general, self.user):
+            self.client.force_authenticate(user=None)
+            login = self.client.post("/api/v1/auth/login/", {"phone": user.phone, "password": "StrongPass!123"}, format="json")
+            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+            boot = self.client.get("/api/v1/mobile/bootstrap/")
+            self.assertEqual(boot.status_code, 200)
+            self.assertEqual(boot.data["user"]["id"], user.pk)
+            self.assertEqual(boot.data["report"]["client_report_id"], payload["client_report_id"])
+            self.assertEqual(boot.data["report"]["supervisor_id"], self.user.pk)
+
+        self.auth(self.general)
+        changed = self.client.put(f"/api/v1/mobile/reports/{created.data['report']['id']}/", payload, format="json")
+        self.assertEqual(changed.status_code, 404)
+        outsider = User.objects.create_user("01555555555", "StrongPass!123", factory=self.f2)
+        self.auth(outsider)
+        self.assertIsNone(self.client.get("/api/v1/mobile/bootstrap/").data["report"])
+
+    @override_settings(ENFORCE_SHIFT_HOURS=True)
+    def test_rotated_supervisor_can_review_factory_report_after_morning_hours(self):
+        from unittest.mock import patch
+        from production.models import FactoryShiftRotation
+        from django.utils.dateparse import parse_date
+        FactoryShiftRotation.objects.create(factory=self.f1, effective_from=timezone.localdate())
+        self.general.shift = User.Shift.SECOND
+        self.general.save()
+        with override_settings(ENFORCE_SHIFT_HOURS=False):
+            self.auth()
+            payload = self.payload()
+            self.assertEqual(self.client.post("/api/v1/mobile/reports/", payload, format="json").status_code, 201)
+        evening = datetime.combine(parse_date(payload["report_date"]), datetime.min.time(), tzinfo=ZoneInfo("Africa/Cairo")) + timedelta(hours=20)
+        self.auth(self.general)
+        with patch("django.utils.timezone.localtime", return_value=evening):
+            boot = self.client.get("/api/v1/mobile/bootstrap/")
+            self.assertEqual(boot.status_code, 200)
+            self.assertFalse(boot.data["can_submit_report"])
+            self.assertEqual(boot.data["report"]["client_report_id"], payload["client_report_id"])
+            self.assertEqual(self.client.post("/api/v1/mobile/reports/", payload, format="json").status_code, 403)

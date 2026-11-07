@@ -20,7 +20,7 @@ from dashboard.forms import SupervisorForm
 from factories.models import Factory
 from maintenance.models import MaintenanceReport
 from maintenance.services.cycle import MaintenanceCycleService
-from production.models import ProductionShiftReport
+from production.models import FactoryShiftRotation, ProductionShiftReport
 
 
 @override_settings(ENFORCE_SHIFT_HOURS=True)
@@ -74,6 +74,7 @@ class ProductionShiftHoursEnforcementTests(TestCase):
 
     def setUp(self):
         self.factory, _ = Factory.objects.get_or_create(code="F1", defaults={"name": "مصنع 1"})
+        FactoryShiftRotation.objects.create(factory=self.factory, effective_from=timezone.localdate())
         self.asset = Asset.objects.create(
             factory=self.factory, asset_type=Asset.Type.REGULAR_MACHINE,
             asset_code="M-01", sequence_order=1
@@ -201,6 +202,7 @@ class MaintenanceShiftHoursEnforcementTests(TestCase):
 
     def setUp(self):
         self.factory, _ = Factory.objects.get_or_create(code="F1", defaults={"name": "مصنع 1"})
+        FactoryShiftRotation.objects.create(factory=self.factory, effective_from=timezone.localdate())
         self.asset = Asset.objects.create(
             factory=self.factory, asset_type=Asset.Type.REGULAR_MACHINE,
             asset_code="M-01", sequence_order=1
@@ -273,12 +275,17 @@ class MaintenanceShiftHoursEnforcementTests(TestCase):
             self.assertEqual(result.status, "rejected")
             self.assertIn("مشرف الوردية الصباحية فقط", result.reason)
 
-    def test_maintenance_api_permission_denied_for_non_morning_supervisor(self):
+    def test_maintenance_read_allowed_but_writes_denied_for_non_morning_supervisor(self):
         client = APIClient()
         client.force_authenticate(user=self.evening_general_sup)
         res = client.get("/api/v1/mobile/current-maintenance/")
-        self.assertEqual(res.status_code, 403)
-        self.assertIn("متاحة لمشرف الوردية الصباحية فقط", res.data["detail"])
+        self.assertEqual(res.status_code, 200)
+        bootstrap = client.get("/api/v1/mobile/bootstrap/")
+        self.assertEqual(bootstrap.status_code, 200)
+        self.assertFalse(bootstrap.data["can_submit_report"])
+        write = client.post("/api/v1/mobile/current-maintenance/select/", {"asset_id": self.asset.pk}, format="json")
+        self.assertEqual(write.status_code, 403)
+        self.assertIn("متاحة لمشرف الوردية الصباحية فقط", write.data["detail"])
 
         client.force_authenticate(user=self.evening_sup)
         res2 = client.get("/api/v1/mobile/current-maintenance/")
