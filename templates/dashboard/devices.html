@@ -2,8 +2,9 @@
 {% block title %}الأجهزة المسجلة والنشطة{% endblock %}
 {% block content %}
 <div class="toolbar"><div><h1>الأجهزة المسجلة والنشطة</h1><p>تابع الأجهزة والحساب المسجل داخل كل تطبيق.</p></div><a class="btn" href="{% url 'dashboard:app-updates' %}">إدارة نسخ التطبيق</a></div>
+<p id="presence-refresh-status" role="status">الحالات تُحدّث تلقائيًا كل 15 ثانية.</p>
 <div id="device-inventory" class="panel">
-  <p><strong>{{ total_count }}</strong> جهاز مسجل · <strong>{{ open_count }}</strong> تطبيق مفتوح الآن</p>
+  <p><strong>{{ total_count }}</strong> جهاز مسجل · <strong data-open-count>{{ open_count }}</strong> تطبيق مفتوح الآن</p>
   <p>«مفتوح الآن» يعني أن التطبيق أكد وجوده في الواجهة خلال آخر 90 ثانية. انقطاع الإنترنت أو إغلاق الهاتف قد يؤخر تغيير الحالة لهذه المدة. اتصال التحديثات في الخلفية لا يُحسب كتطبيق مفتوح.</p>
   <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;margin:16px 0">
     <input name="q" value="{{ q }}" placeholder="ابحث باسم الجهاز أو الحساب أو الهاتف" aria-label="بحث الأجهزة">
@@ -13,7 +14,7 @@
   <div class="table-wrap"><table><thead><tr><th>الجهاز</th><th>حالة التطبيق</th><th>الحساب المسجل</th><th>الشاشة</th><th>الإصدار</th><th>آخر نشاط للتطبيق</th><th>التحديثات</th><th>تفاصيل</th></tr></thead><tbody>
   {% for device in devices %}<tr>
     <td>{{ device.label }}<small style="display:block">{{ device.manufacturer }} {{ device.model }}</small></td>
-    <td>{{ device.presence_label }}</td>
+    <td data-presence-label>{{ device.presence_label }}</td>
     <td>{% if device.presence_seen_at %}{% if device.current_user %}{{ device.current_user.display_name }}<small style="display:block">{{ device.current_user.phone }} · {{ device.current_user.factory.name|default:'—' }}</small>{% else %}بدون تسجيل دخول{% endif %}{% if not device.presence_fresh %}<small style="display:block">حسب آخر تأكيد، وليس اتصالًا حيًا</small>{% endif %}{% else %}غير مؤكد<small style="display:block">آخر حساب معروف: {{ device.last_user.display_name|default:'—' }}</small>{% endif %}</td>
     <td>{{ device.screen_label }}</td>
     <td>{{ device.version_name }} · {{ device.version_code }}</td>
@@ -30,11 +31,16 @@ setInterval(async () => {
   if (document.hidden || document.activeElement?.closest('form')) return;
   try {
     const response = await fetch(window.location.href, {credentials:'same-origin',cache:'no-store'});
-    if (!response.ok || response.redirected) return;
+    if (!response.ok || response.redirected) throw new Error('refresh failed');
     const page = new DOMParser().parseFromString(await response.text(),'text/html');
     const next = page.getElementById('device-inventory'), current = document.getElementById('device-inventory');
     if (next && current) current.replaceWith(next);
-  } catch (_) {}
+    document.getElementById('presence-refresh-status').textContent = 'تم تحديث الحالات. التحديث تلقائي كل 15 ثانية.';
+  } catch (_) {
+    document.getElementById('presence-refresh-status').textContent = 'تعذر تحديث الحالات؛ لا يمكن تأكيد الأجهزة المفتوحة حاليًا. المعروض هو آخر معلومات متاحة.';
+    document.querySelectorAll('[data-presence-label]').forEach(el => el.textContent = 'تعذر تأكيد الحالة الآن');
+    document.querySelectorAll('[data-open-count]').forEach(el => el.textContent = '—');
+  }
 }, 15000);
 </script>
 {% endblock %}

@@ -249,6 +249,13 @@ class UpdateTests(TestCase):
         self.assertEqual(device.current_user_id, self.other.pk)
         self.assertEqual(str(device.account_session), current)
 
+    def test_fresh_logout_can_clear_account_after_local_session_metadata_was_lost(self):
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
+        self.presence(session)
+        self.assertEqual(self.presence(None, sequence=3, logged_in=False, screen="login").status_code, 200)
+        self.assertIsNone(AppDevice.objects.get().current_user_id)
+
     def test_reordered_background_event_cannot_hide_newer_foreground_event(self):
         session = str(uuid.uuid4())
         self.register(session=session, sequence=1)

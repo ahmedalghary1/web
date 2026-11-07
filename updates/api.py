@@ -186,7 +186,7 @@ class PresenceView(DeviceView):
             return Response({"received": True, "stale": True})
         # A delayed logout/heartbeat from another login must never overwrite
         # the account established by authenticated device registration.
-        if values["account_session"] != device.account_session:
+        if values["logged_in"] and values["account_session"] != device.account_session:
             return Response({"detail": "تغيرت جلسة الجهاز؛ أعد ربط الحساب."}, status=409)
         if values["logged_in"] and device.current_user_id is None:
             return Response({"detail": "يجب ربط الحساب أولًا."}, status=409)

@@ -2,12 +2,13 @@
 {% block title %}تفاصيل الجهاز{% endblock %}
 {% block content %}
 <div class="toolbar"><h1>{{ device.label }}</h1><a class="btn" href="{% url 'dashboard:devices' %}">كل الأجهزة</a></div>
+<p id="presence-refresh-status" role="status">الحالة تُحدّث تلقائيًا كل 15 ثانية.</p>
 <div id="device-details">
 <div class="panel"><h2>حالة التطبيق والحساب</h2>
-<p><strong>{{ device.presence_label }}</strong> · {{ device.screen_label }}</p>
+<p><strong data-presence-label>{{ device.presence_label }}</strong> · {{ device.screen_label }}</p>
 {% if device.presence_seen_at %}<p>الحساب المسجل: {% if device.current_user %}{{ device.current_user.display_name }} · {{ device.current_user.phone }} · {{ device.current_user.get_role_display }}{% else %}بدون تسجيل دخول{% endif %}</p>{% else %}<p>النسخة الحالية على هذا الجهاز لم ترسل تأكيدًا لحالة الفتح. الحساب الحالي غير مؤكد.</p>{% endif %}
 <p>آخر حساب معروف: {{ device.last_user.display_name|default:'—' }} · {{ device.last_user.phone|default:'—' }}</p>
-<p>المصنع: {{ device.factory.name|default:'—' }}</p>
+<p>المصنع المرتبط بآخر حساب: {{ device.factory.name|default:'—' }}</p>
 <p>آخر تأكيد لحالة التطبيق: {{ device.presence_seen_at|date:'Y-m-d H:i:s'|default:'—' }}. الحالة تعتبر حديثة لمدة 90 ثانية فقط؛ قد يتأخر تأكيد الإغلاق عند فقد الإنترنت.</p>
 </div>
 <div class="panel"><h2>تفاصيل الجهاز والتحديث</h2><dl>
@@ -31,11 +32,15 @@ setInterval(async () => {
   if (document.hidden || document.activeElement?.closest('form')) return;
   try {
     const response = await fetch(window.location.href, {credentials:'same-origin',cache:'no-store'});
-    if (!response.ok || response.redirected) return;
+    if (!response.ok || response.redirected) throw new Error('refresh failed');
     const page = new DOMParser().parseFromString(await response.text(),'text/html');
     const next = page.getElementById('device-details'), current = document.getElementById('device-details');
     if (next && current) current.replaceWith(next);
-  } catch (_) {}
+    document.getElementById('presence-refresh-status').textContent = 'تم تحديث الحالة. التحديث تلقائي كل 15 ثانية.';
+  } catch (_) {
+    document.getElementById('presence-refresh-status').textContent = 'تعذر تحديث الحالة؛ الحساب والتفاصيل أدناه حسب آخر معلومات متاحة.';
+    document.querySelectorAll('[data-presence-label]').forEach(el => el.textContent = 'تعذر تأكيد الحالة الآن');
+  }
 }, 15000);
 </script>
 {% endblock %}
