@@ -19,13 +19,13 @@
 <p>تظهر الأجهزة بعد أول تسجيل دخول بهذه النسخة. «محدّث» يعتمد على الإصدار الذي أبلغ عنه التطبيق بعد تشغيله، وليس انتهاء التنزيل. آخر اتصال لا يعني أن الهاتف متصل الآن.</p>
 <div id="update-devices" style="overflow-x:auto"><table><thead><tr><th>الجهاز</th><th>آخر مستخدم / المصنع</th><th>الإصدار المثبّت</th><th>حالة الإصدار</th><th>حالة التحديث</th><th>آخر اتصال</th><th>إدارة</th></tr></thead><tbody>
 {% for device in devices %}<tr>
-  <td>{{ device.label }}<small style="display:block">{{ device.id|stringformat:'s'|slice:':8' }} · Android API {{ device.android_sdk }}</small></td>
+  <td><a href="{% url 'dashboard:device-detail' device.pk %}">{{ device.label }}</a><small style="display:block">{{ device.id|stringformat:'s'|slice:':8' }} · Android API {{ device.android_sdk }}</small></td>
   <td>{{ device.last_user.display_name|default:'—' }}<small style="display:block">{{ device.factory.name|default:'—' }}</small></td>
   <td>{{ device.version_name }} · {{ device.version_code }}</td>
-  <td>{% if not device.is_active %}موقوف{% elif not latest %}لا يوجد إصدار منشور{% elif device.is_current %}محدّث{% else %}لم يحدّث بعد{% endif %}</td>
+  <td>{% if not device.is_active or not device.updates_enabled %}التحديثات موقوفة{% elif not latest %}لا يوجد إصدار منشور{% elif device.is_current %}محدّث{% else %}لم يحدّث بعد{% endif %}</td>
   <td>{{ device.get_status_display }}{% if device.status == 'downloading' %} {{ device.progress }}٪{% endif %}{% if device.error %}<small style="display:block;color:#b42318">{{ device.error }}</small>{% endif %}</td>
   <td>{{ device.last_seen|date:'Y-m-d H:i' }}<small style="display:block">{% if device.recently_seen %}اتصال خلال آخر 15 دقيقة{% else %}لم يتصل مؤخرًا{% endif %}</small></td>
-  <td>{% if device.is_active %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="device_id" value="{{ device.pk }}"><button class="btn" type="submit">إيقاف الجهاز</button></form>{% endif %}</td>
+  <td>{% include 'dashboard/_device_update_control.html' %}</td>
 </tr>{% empty %}<tr><td colspan="7">لم تسجّل أجهزة بعد. ثبّت النسخة التي تدعم التحديثات وسجّل الدخول مرة واحدة.</td></tr>{% endfor %}
 </tbody></table></div></div>
 <div class="card" style="padding:24px"><h2>سجل النسخ</h2><div style="overflow-x:auto"><table><thead><tr><th>النسخة</th><th>الحجم</th><th>ما الجديد؟</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody>

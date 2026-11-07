@@ -52,6 +52,17 @@ class AppDevice(models.Model):
     progress = models.PositiveSmallIntegerField(default=0)
     error = models.CharField(max_length=1000, blank=True)
     is_active = models.BooleanField(default=True)
+    updates_enabled = models.BooleanField(default=True)
+    manufacturer = models.CharField(max_length=80, blank=True)
+    model = models.CharField(max_length=120, blank=True)
+    android_version = models.CharField(max_length=40, blank=True)
+    current_user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                     related_name="current_app_devices", on_delete=models.SET_NULL)
+    account_session = models.UUIDField(null=True, blank=True)
+    is_foreground = models.BooleanField(null=True, default=None)
+    current_screen = models.CharField(max_length=20, blank=True)
+    presence_seen_at = models.DateTimeField(null=True, blank=True)
+    presence_sequence = models.PositiveBigIntegerField(default=0)
     last_seen = models.DateTimeField()
     registered_at = models.DateTimeField(auto_now_add=True)
 

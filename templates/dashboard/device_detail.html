@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}تفاصيل الجهاز{% endblock %}
+{% block content %}
+<div class="toolbar"><h1>{{ device.label }}</h1><a class="btn" href="{% url 'dashboard:devices' %}">كل الأجهزة</a></div>
+<div id="device-details">
+<div class="panel"><h2>حالة التطبيق والحساب</h2>
+<p><strong>{{ device.presence_label }}</strong> · {{ device.screen_label }}</p>
+{% if device.presence_seen_at %}<p>الحساب المسجل: {% if device.current_user %}{{ device.current_user.display_name }} · {{ device.current_user.phone }} · {{ device.current_user.get_role_display }}{% else %}بدون تسجيل دخول{% endif %}</p>{% else %}<p>النسخة الحالية على هذا الجهاز لم ترسل تأكيدًا لحالة الفتح. الحساب الحالي غير مؤكد.</p>{% endif %}
+<p>آخر حساب معروف: {{ device.last_user.display_name|default:'—' }} · {{ device.last_user.phone|default:'—' }}</p>
+<p>المصنع: {{ device.factory.name|default:'—' }}</p>
+<p>آخر تأكيد لحالة التطبيق: {{ device.presence_seen_at|date:'Y-m-d H:i:s'|default:'—' }}. الحالة تعتبر حديثة لمدة 90 ثانية فقط؛ قد يتأخر تأكيد الإغلاق عند فقد الإنترنت.</p>
+</div>
+<div class="panel"><h2>تفاصيل الجهاز والتحديث</h2><dl>
+<dt>معرف التثبيت</dt><dd dir="ltr">{{ device.id }}</dd>
+<dt>الشركة والموديل</dt><dd>{{ device.manufacturer|default:'—' }} · {{ device.model|default:'—' }}</dd>
+<dt>Android</dt><dd>{{ device.android_version|default:'—' }} · API {{ device.android_sdk }}</dd>
+<dt>نسخة التطبيق</dt><dd>{{ device.version_name }} · بناء {{ device.version_code }}</dd>
+<dt>تاريخ التسجيل</dt><dd>{{ device.registered_at|date:'Y-m-d H:i:s' }}</dd>
+<dt>آخر اتصال بالخدمة، بما فيه الخلفية</dt><dd>{{ device.last_seen|date:'Y-m-d H:i:s' }}</dd>
+<dt>حالة التحديث</dt><dd>{{ device.get_status_display }} · {{ device.progress }}٪{% if device.error %}<p>{{ device.error }}</p>{% endif %}</dd>
+<dt>النسخة المستهدفة</dt><dd>{{ device.target_release.version_name|default:'—' }}</dd>
+<dt>التحديثات التلقائية</dt><dd>{% if device.is_active and device.updates_enabled %}مفعلة{% else %}موقوفة{% endif %}</dd>
+</dl>{% include 'dashboard/_device_update_control.html' %}
+<p>إيقاف التحديثات لا يوقف الحساب أو التقارير أو متابعة نشاط الجهاز. يمكنك إعادة تفعيلها في أي وقت.</p>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+setInterval(async () => {
+  if (document.hidden || document.activeElement?.closest('form')) return;
+  try {
+    const response = await fetch(window.location.href, {credentials:'same-origin',cache:'no-store'});
+    if (!response.ok || response.redirected) return;
+    const page = new DOMParser().parseFromString(await response.text(),'text/html');
+    const next = page.getElementById('device-details'), current = document.getElementById('device-details');
+    if (next && current) current.replaceWith(next);
+  } catch (_) {}
+}, 15000);
+</script>
+{% endblock %}

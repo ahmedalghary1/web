@@ -4,6 +4,7 @@ import struct
 import tempfile
 import uuid
 import zipfile
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -58,10 +59,13 @@ class UpdateTests(TestCase):
     def info(self, version=5):
         return {"version_code": version, "version_name": "1.1.0", "android_sdk": 34, "label": "Factory phone"}
 
-    def register(self, user=None, secret=None):
+    def register(self, user=None, secret=None, session=None, sequence=None):
         self.api.credentials()
         self.api.force_authenticate(user or self.user)
-        result = self.api.post(reverse("updates:register"), {**self.info(), "device_id": self.device_id, "device_secret": secret or self.secret}, format="json")
+        body = {**self.info(), "device_id": self.device_id, "device_secret": secret or self.secret}
+        if session is not None:
+            body.update(account_session=session, sequence=sequence)
+        result = self.api.post(reverse("updates:register"), body, format="json")
         self.api.force_authenticate(None)
         self.api.credentials(HTTP_X_DEVICE_ID=self.device_id, HTTP_X_DEVICE_TOKEN=self.secret)
         return result
@@ -141,12 +145,34 @@ class UpdateTests(TestCase):
         self.assertEqual((page.context["current_count"], page.context["pending_count"]), (1, 0))
         self.assertIsNone(self.api.get(reverse("updates:latest")).data["release"])
 
-    def test_revoked_device_cannot_poll_or_reregister(self):
-        self.register()
+    def test_paused_updates_can_be_resumed_and_do_not_disable_device_reporting(self):
+        release = self.upload()
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
         self.client.force_login(self.admin)
         self.client.post(reverse("dashboard:app-updates"), {"action": "revoke", "device_id": self.device_id})
+        device = AppDevice.objects.get()
+        self.assertTrue(device.is_active)
+        self.assertFalse(device.updates_enabled)
+        self.assertFalse(self.api.get(reverse("updates:latest")).data["updates_enabled"])
+        self.assertEqual(self.api.get(reverse("updates:download", args=[release.pk])).status_code, 403)
+        self.assertEqual(self.api.post(reverse("updates:heartbeat"), {**self.info(), "status": "current"}, format="json").status_code, 200)
+        self.assertEqual(self.presence(session).status_code, 200)
+        self.assertEqual(AppDevice.objects.get().current_user_id, self.user.pk)
+        self.assertContains(self.client.get(reverse("dashboard:app-updates")), "تفعيل التحديثات")
+        self.client.post(reverse("dashboard:app-updates"), {"action": "enable-updates", "device_id": self.device_id})
+        self.assertEqual(self.api.get(reverse("updates:latest")).data["release"]["id"], release.pk)
+
+    def test_legacy_stopped_device_can_be_restored_from_dashboard(self):
+        self.register()
+        AppDevice.objects.filter(pk=self.device_id).update(is_active=False)
         self.assertEqual(self.api.get(reverse("updates:latest")).status_code, 401)
-        self.assertEqual(self.register().status_code, 403)
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("dashboard:app-updates")), "تفعيل التحديثات")
+        self.client.post(reverse("dashboard:app-updates"), {"action": "enable-updates", "device_id": self.device_id})
+        self.assertEqual(self.api.get(reverse("updates:latest")).status_code, 200)
+        device = AppDevice.objects.get()
+        self.assertTrue(device.is_active and device.updates_enabled)
 
     def test_heartbeat_validation_and_failed_install_remain_pending(self):
         release = self.upload()
@@ -158,3 +184,91 @@ class UpdateTests(TestCase):
         self.assertEqual(page.context["pending_count"], 1)
         for extra in ({"status": "invented"}, {"status": "downloading", "progress": 101}, {"status": "ready", "release_id": 9999}):
             self.assertEqual(self.api.post(reverse("updates:heartbeat"), {**self.info(), **extra}, format="json").status_code, 400)
+
+    def presence(self, session, sequence=2, foreground=True, logged_in=True, screen="maintenance"):
+        return self.api.post(reverse("updates:presence"), {"account_session": session, "sequence": sequence,
+            "foreground": foreground, "logged_in": logged_in, "screen": screen}, format="json")
+
+    def test_open_device_has_current_account_details_and_screen(self):
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
+        self.assertEqual(self.presence(session).status_code, 200)
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("dashboard:devices"))
+        self.assertEqual(page.context["open_count"], 1)
+        self.assertContains(page, self.user.phone)
+        self.assertContains(page, "الصيانة")
+        detail = self.client.get(reverse("dashboard:device-detail", args=[self.device_id]))
+        self.assertContains(detail, self.device_id)
+        self.assertContains(detail, self.user.phone)
+        self.assertNotContains(detail, self.secret)
+
+    def test_background_update_heartbeat_does_not_claim_application_is_open(self):
+        self.register()
+        self.api.post(reverse("updates:heartbeat"), {**self.info(), "status": "current"}, format="json")
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("dashboard:devices"))
+        self.assertEqual(page.context["open_count"], 0)
+        self.assertContains(page, "حالة الفتح غير معروفة")
+
+    def test_background_and_expired_presence_do_not_count_as_open(self):
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
+        self.presence(session, foreground=False)
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("dashboard:devices"))
+        self.assertEqual(page.context["open_count"], 0)
+        self.assertContains(page, "في الخلفية")
+        self.presence(session, sequence=3)
+        AppDevice.objects.filter(pk=self.device_id).update(presence_seen_at=timezone.now() - timedelta(seconds=91))
+        page = self.client.get(reverse("dashboard:devices"))
+        self.assertEqual(page.context["open_count"], 0)
+        self.assertContains(page, "لا يوجد تأكيد نشاط حديث")
+
+    def test_logout_clears_current_account_but_preserves_last_account(self):
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
+        self.presence(session)
+        self.assertEqual(self.presence(session, sequence=3, logged_in=False, screen="login").status_code, 200)
+        device = AppDevice.objects.get()
+        self.assertIsNone(device.current_user_id)
+        self.assertIsNone(device.account_session)
+        self.assertEqual(device.last_user_id, self.user.pk)
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("dashboard:devices")), "بدون تسجيل دخول")
+
+    def test_old_account_presence_cannot_overwrite_new_account_session(self):
+        previous, current = str(uuid.uuid4()), str(uuid.uuid4())
+        self.register(session=previous, sequence=1)
+        self.presence(previous)
+        self.register(self.other, session=current, sequence=4)
+        self.assertTrue(self.register(self.user, session=previous, sequence=2).data["stale"])
+        self.assertEqual(self.presence(previous, sequence=3, logged_in=False).status_code, 200)
+        self.assertEqual(self.presence(previous, sequence=5).status_code, 409)
+        device = AppDevice.objects.get()
+        self.assertEqual(device.current_user_id, self.other.pk)
+        self.assertEqual(str(device.account_session), current)
+
+    def test_reordered_background_event_cannot_hide_newer_foreground_event(self):
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
+        self.presence(session, sequence=3)
+        self.assertTrue(self.presence(session, sequence=2, foreground=False).data["stale"])
+        self.assertTrue(AppDevice.objects.get().is_foreground)
+
+    def test_inventory_and_controls_are_admin_only(self):
+        self.register()
+        self.client.force_login(self.user)
+        for url in (reverse("dashboard:devices"), reverse("dashboard:device-detail", args=[self.device_id])):
+            self.assertEqual(self.client.get(url).status_code, 302)
+            self.assertEqual(self.client.post(url, {"action": "disable-updates", "device_id": self.device_id}).status_code, 302)
+        self.assertTrue(AppDevice.objects.get().updates_enabled)
+
+    def test_open_filter_and_search_match_account_and_device(self):
+        session = str(uuid.uuid4())
+        self.register(session=session, sequence=1)
+        self.presence(session)
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("dashboard:devices"), {"q": self.user.phone, "state": "open"})
+        self.assertEqual(len(page.context["devices"]), 1)
+        self.assertEqual(len(self.client.get(reverse("dashboard:devices"), {"q": "not-a-device"}).context["devices"]), 0)

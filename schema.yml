@@ -321,6 +321,33 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/updates/presence/:
+    post:
+      operationId: v1_updates_presence_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Presence'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Presence'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Presence'
+        required: true
+      security:
+      - DeviceToken: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/updates/register/:
     post:
       operationId: v1_updates_register_create
@@ -481,6 +508,15 @@ components:
         label:
           type: string
           maxLength: 150
+        manufacturer:
+          type: string
+          maxLength: 80
+        model:
+          type: string
+          maxLength: 120
+        android_version:
+          type: string
+          maxLength: 40
         status:
           $ref: '#/components/schemas/HeartbeatStatusEnum'
         progress:
@@ -681,6 +717,30 @@ components:
     NullEnum:
       enum:
       - null
+    Presence:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        account_session:
+          type: string
+          format: uuid
+          nullable: true
+        logged_in:
+          type: boolean
+        foreground:
+          type: boolean
+        screen:
+          $ref: '#/components/schemas/ScreenEnum'
+      required:
+      - account_session
+      - foreground
+      - logged_in
+      - screen
+      - sequence
     ProductionShiftReport:
       type: object
       properties:
@@ -873,12 +933,29 @@ components:
         label:
           type: string
           maxLength: 150
+        manufacturer:
+          type: string
+          maxLength: 80
+        model:
+          type: string
+          maxLength: 120
+        android_version:
+          type: string
+          maxLength: 40
         device_id:
           type: string
           format: uuid
         device_secret:
           type: string
           pattern: ^[a-f0-9]{64}$
+        account_session:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
       required:
       - android_sdk
       - device_id
@@ -947,6 +1024,22 @@ components:
         فقط)\n* `PRODUCTION_SUPERVISOR` - \U0001F3ED مشرف إنتاج وأعطال (صلاحيات الإنتاج
         والأعطال لمصنعه فقط)\n* `GENERAL_SUPERVISOR` - ⚡ مشرف عام للمصنع (صيانة وإنتاج
         لمصنعه فقط)"
+    ScreenEnum:
+      enum:
+      - main
+      - login
+      - maintenance
+      - production
+      - update
+      - background
+      type: string
+      description: |-
+        * `main` - main
+        * `login` - login
+        * `maintenance` - maintenance
+        * `production` - production
+        * `update` - update
+        * `background` - background
     StoppageTypeEnum:
       enum:
       - MACHINE_BREAKDOWN

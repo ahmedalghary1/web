@@ -1,8 +1,10 @@
 from django.urls import path
 from dashboard import views
-from updates.dashboard import releases
+from updates.dashboard import releases, devices, device_detail
 app_name = "dashboard"
 urlpatterns = [
+    path("devices/", devices, name="devices"),
+    path("devices/<uuid:pk>/", device_detail, name="device-detail"),
     path("app-updates/", releases, name="app-updates"),
     path("", views.home, name="home"),
     path("factories/", views.factories, name="factories"),

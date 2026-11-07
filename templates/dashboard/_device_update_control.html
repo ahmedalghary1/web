@@ -1,0 +1,5 @@
+<form method="post">{% csrf_token %}
+  <input type="hidden" name="device_id" value="{{ device.pk }}">
+  <input type="hidden" name="action" value="{% if device.is_active and device.updates_enabled %}disable-updates{% else %}enable-updates{% endif %}">
+  <button class="btn" type="submit">{% if device.is_active and device.updates_enabled %}إيقاف التحديثات{% else %}تفعيل التحديثات{% endif %}</button>
+</form>

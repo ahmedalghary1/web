@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}الأجهزة المسجلة والنشطة{% endblock %}
+{% block content %}
+<div class="toolbar"><div><h1>الأجهزة المسجلة والنشطة</h1><p>تابع الأجهزة والحساب المسجل داخل كل تطبيق.</p></div><a class="btn" href="{% url 'dashboard:app-updates' %}">إدارة نسخ التطبيق</a></div>
+<div id="device-inventory" class="panel">
+  <p><strong>{{ total_count }}</strong> جهاز مسجل · <strong>{{ open_count }}</strong> تطبيق مفتوح الآن</p>
+  <p>«مفتوح الآن» يعني أن التطبيق أكد وجوده في الواجهة خلال آخر 90 ثانية. انقطاع الإنترنت أو إغلاق الهاتف قد يؤخر تغيير الحالة لهذه المدة. اتصال التحديثات في الخلفية لا يُحسب كتطبيق مفتوح.</p>
+  <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;margin:16px 0">
+    <input name="q" value="{{ q }}" placeholder="ابحث باسم الجهاز أو الحساب أو الهاتف" aria-label="بحث الأجهزة">
+    <select name="state" aria-label="حالة التطبيق"><option value="">كل الأجهزة</option value="open" {% if state == 'open' %}selected{% endif %}>المفتوحة الآن</option></select>
+    <button class="btn" type="submit">بحث</button>
+  </form>
+  <div class="table-wrap"><table><thead><tr><th>الجهاز</th><th>حالة التطبيق</th><th>الحساب المسجل</th><th>الشاشة</th><th>الإصدار</th><th>آخر نشاط للتطبيق</th><th>التحديثات</th><th>تفاصيل</th></tr></thead><tbody>
+  {% for device in devices %}<tr>
+    <td>{{ device.label }}<small style="display:block">{{ device.manufacturer }} {{ device.model }}</small></td>
+    <td>{{ device.presence_label }}</td>
+    <td>{% if device.presence_seen_at %}{% if device.current_user %}{{ device.current_user.display_name }}<small style="display:block">{{ device.current_user.phone }} · {{ device.current_user.factory.name|default:'—' }}</small>{% else %}بدون تسجيل دخول{% endif %}{% if not device.presence_fresh %}<small style="display:block">حسب آخر تأكيد، وليس اتصالًا حيًا</small>{% endif %}{% else %}غير مؤكد<small style="display:block">آخر حساب معروف: {{ device.last_user.display_name|default:'—' }}</small>{% endif %}</td>
+    <td>{{ device.screen_label }}</td>
+    <td>{{ device.version_name }} · {{ device.version_code }}</td>
+    <td>{{ device.presence_seen_at|date:'Y-m-d H:i:s'|default:'لم يرسل حالة الفتح بعد' }}</td>
+    <td>{% if device.is_active and device.updates_enabled %}مفعلة{% else %}موقوفة{% endif %}{% include 'dashboard/_device_update_control.html' %}</td>
+    <td><a class="btn" href="{% url 'dashboard:device-detail' device.pk %}">عرض التفاصيل</a></td>
+  </tr>{% empty %}<tr><td colspan="8">لا توجد أجهزة مطابقة. تظهر الأجهزة بعد تسجيل الدخول بالتطبيق.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+setInterval(async () => {
+  if (document.hidden || document.activeElement?.closest('form')) return;
+  try {
+    const response = await fetch(window.location.href, {credentials:'same-origin',cache:'no-store'});
+    if (!response.ok || response.redirected) return;
+    const page = new DOMParser().parseFromString(await response.text(),'text/html');
+    const next = page.getElementById('device-inventory'), current = document.getElementById('device-inventory');
+    if (next && current) current.replaceWith(next);
+  } catch (_) {}
+}, 15000);
+</script>
+{% endblock %}
